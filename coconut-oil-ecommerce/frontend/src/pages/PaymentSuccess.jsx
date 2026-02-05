@@ -1,74 +1,106 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle, ShoppingBag, Home, Package } from 'lucide-react';
+import { CheckCircle, ShoppingBag, Home, Package, RefreshCw } from 'lucide-react';
 import { getOrderById } from '../api/order.api';
+import { verifyPayment } from '../api/payment.api';
 import Loader from '../components/common/Loader';
+import Toast from '../components/common/Toast';
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [toast, setToast] = useState(null);
+  const [paymentVerified, setPaymentVerified] = useState(false);
 
   const orderNumber = searchParams.get('order');
+  const reference = searchParams.get('reference');
+  const trxref = searchParams.get('trxref');
+
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
-    const fetchOrder = async () => {
-      if (!orderNumber) {
-        // If no order number, show generic success
+    const fetchData = async () => {
+      if (!orderNumber && !reference && !trxref) {
+        // If no parameters, show generic success
         setLoading(false);
         return;
       }
 
       try {
         setLoading(true);
-        const response = await getOrderById(orderNumber);
         
-        if (response.success) {
-          setOrder(response.data);
-        } else {
-          setError('Order not found');
+        // Try to fetch order by order number
+        if (orderNumber) {
+          const orderResponse = await getOrderById(orderNumber);
+          if (orderResponse.success) {
+            setOrder(orderResponse.data);
+            
+            // If we have a Paystack reference, verify payment
+            if (orderResponse.data.paystackReference) {
+              await verifyPaymentStatus(orderResponse.data.paystackReference);
+            }
+          } else {
+            setError('Order not found');
+          }
         }
+        // If we have a Paystack reference directly, verify it
+        else if (reference || trxref) {
+          const paymentRef = reference || trxref;
+          await verifyPaymentStatus(paymentRef);
+        }
+        
       } catch (error) {
-        console.error('Error fetching order:', error);
+        console.error('Error fetching data:', error);
         setError('Failed to load order details');
       } finally {
         setLoading(false);
       }
     };
 
-    fetchOrder();
-  }, [orderNumber]);
+    fetchData();
+  }, [orderNumber, reference, trxref]);
+
+  const verifyPaymentStatus = async (paymentReference) => {
+    try {
+      setVerifying(true);
+      const response = await verifyPayment(paymentReference);
+      
+      if (response.success) {
+        setPaymentVerified(response.verified);
+        
+        if (response.verified) {
+          showToast('Payment verified successfully!', 'success');
+        } else {
+          showToast('Payment verification failed', 'warning');
+        }
+      }
+    } catch (error) {
+      console.error('Payment verification error:', error);
+      showToast('Payment verification error', 'error');
+    } finally {
+      setVerifying(false);
+    }
+  };
+
+  const handleRetryVerification = () => {
+    if (order?.paystackReference) {
+      verifyPaymentStatus(order.paystackReference);
+    } else if (reference || trxref) {
+      verifyPaymentStatus(reference || trxref);
+    }
+  };
 
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-12">
         <Loader />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-12 text-center">
-        <div className="w-24 h-24 mx-auto mb-6 bg-red-100 rounded-full flex items-center justify-center">
-          <Package className="w-12 h-12 text-red-600" />
-        </div>
-        <h2 className="text-3xl font-bold text-gray-800 mb-4">Order Not Found</h2>
-        <p className="text-gray-600 mb-8 max-w-md mx-auto">
-          {error}. Please check your order number or contact support.
-        </p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Link to="/" className="btn-primary">
-            <Home className="w-5 h-5 mr-2 inline-block" />
-            Go Home
-          </Link>
-          <Link to="/products" className="btn-outline">
-            <ShoppingBag className="w-5 h-5 mr-2 inline-block" />
-            Continue Shopping
-          </Link>
-        </div>
       </div>
     );
   }
@@ -82,12 +114,69 @@ export default function PaymentSuccess() {
             <CheckCircle className="w-12 h-12 text-green-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-800 mb-4">
-            Payment Successful! 🎉
+            {paymentVerified ? 'Payment Successful! 🎉' : 'Order Received!'}
           </h1>
           <p className="text-xl text-gray-600">
-            Thank you for your order. Your payment has been processed successfully.
+            {paymentVerified 
+              ? 'Thank you for your order. Your payment has been processed successfully.'
+              : 'Thank you for your order. We are processing your payment.'}
           </p>
         </div>
+
+        {/* Payment Verification Status */}
+        {(reference || trxref || order?.paystackReference) && (
+          <div className="card mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-gray-800">Payment Status</h3>
+              {verifying ? (
+                <div className="flex items-center gap-2 text-blue-600">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Verifying...
+                </div>
+              ) : (
+                <button
+                  onClick={handleRetryVerification}
+                  className="btn-outline text-sm py-1 px-3 flex items-center gap-1"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  Verify Again
+                </button>
+              )}
+            </div>
+            
+            <div className={`p-4 rounded-lg ${
+              paymentVerified ? 'bg-green-50 text-green-800' : 'bg-yellow-50 text-yellow-800'
+            }`}>
+              <div className="flex items-center gap-3">
+                {paymentVerified ? (
+                  <CheckCircle className="w-5 h-5" />
+                ) : (
+                  <Package className="w-5 h-5" />
+                )}
+                <div>
+                  <p className="font-medium">
+                    {paymentVerified ? 'Payment Verified' : 'Payment Verification Pending'}
+                  </p>
+                  <p className="text-sm mt-1">
+                    {paymentVerified 
+                      ? 'Your payment has been confirmed by Paystack.'
+                      : 'We are verifying your payment. This may take a few moments.'}
+                  </p>
+                </div>
+              </div>
+              
+              {(reference || trxref || order?.paystackReference) && (
+                <div className="mt-3 pt-3 border-t border-current border-opacity-30">
+                  <p className="text-sm">
+                    Reference: <span className="font-mono">
+                      {reference || trxref || order?.paystackReference}
+                    </span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Order Details */}
         <div className="card mb-8">
@@ -121,11 +210,15 @@ export default function PaymentSuccess() {
                       <div>
                         <p className="text-sm text-gray-600">Payment Status</p>
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                          order.paymentStatus === 'paid'
+                          order.paymentStatus === 'paid' || paymentVerified
                             ? 'bg-green-100 text-green-800'
-                            : 'bg-yellow-100 text-yellow-800'
+                            : order.paymentStatus === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
                         }`}>
-                          {order.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
+                          {paymentVerified ? 'Verified' : 
+                           order.paymentStatus === 'paid' ? 'Paid' : 
+                           order.paymentStatus.charAt(0).toUpperCase() + order.paymentStatus.slice(1)}
                         </span>
                       </div>
                       <div>
@@ -133,6 +226,8 @@ export default function PaymentSuccess() {
                         <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
                           order.orderStatus === 'pending'
                             ? 'bg-yellow-100 text-yellow-800'
+                            : order.orderStatus === 'confirmed'
+                            ? 'bg-blue-100 text-blue-800'
                             : 'bg-green-100 text-green-800'
                         }`}>
                           {order.orderStatus.charAt(0).toUpperCase() + order.orderStatus.slice(1)}
@@ -149,9 +244,12 @@ export default function PaymentSuccess() {
                   </>
                 ) : (
                   <div className="text-center py-6">
-                    <p className="text-gray-600">Demo order completed successfully!</p>
+                    <div className="w-16 h-16 mx-auto mb-4 bg-coconut-light rounded-full flex items-center justify-center">
+                      <Package className="w-8 h-8 text-primary-600" />
+                    </div>
+                    <p className="text-gray-700 font-medium">Order processed successfully!</p>
                     <p className="text-sm text-gray-500 mt-2">
-                      In a real implementation, you would see your order details here.
+                      In a real implementation with Paystack, you would see your order details here.
                     </p>
                   </div>
                 )}
@@ -209,6 +307,8 @@ export default function PaymentSuccess() {
                 📞 <a href="tel:+233241234567" className="hover:underline">+233 24 123 4567</a>
                 <br />
                 📧 <a href="mailto:support@coconutoil.com" className="hover:underline">support@coconutoil.com</a>
+                <br />
+                💬 WhatsApp: <a href="https://wa.me/233241234567" className="hover:underline" target="_blank" rel="noopener noreferrer">+233 24 123 4567</a>
               </p>
             </div>
           </div>
@@ -229,16 +329,29 @@ export default function PaymentSuccess() {
         {/* Order Tracking Info */}
         <div className="mt-8 text-center text-sm text-gray-500">
           <p>
-            We've sent order details to your email. Check your inbox (and spam folder).
+            {paymentVerified 
+              ? "We've sent order details to your email. Check your inbox (and spam folder)."
+              : "Once payment is verified, we'll send order details to your email."}
           </p>
-          <p className="mt-2">
-            You can track your order using your order number: 
-            <span className="font-mono font-medium text-primary-700 ml-2">
-              {order?.orderNumber || 'CO-2024-0001'}
-            </span>
-          </p>
+          {order?.orderNumber && (
+            <p className="mt-2">
+              You can track your order using your order number: 
+              <span className="font-mono font-medium text-primary-700 ml-2">
+                {order.orderNumber}
+              </span>
+            </p>
+          )}
         </div>
       </div>
+
+      {/* Toast Notifications */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

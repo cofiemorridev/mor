@@ -15,7 +15,9 @@ const { notFound, errorHandler } = require('./middleware/error.middleware');
 const adminRoutes = require('./routes/admin.routes');
 const productRoutes = require('./routes/product.routes');
 const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
 const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
 
 // Initialize app
 const app = express();
