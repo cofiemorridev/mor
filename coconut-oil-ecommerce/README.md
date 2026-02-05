@@ -31,3 +31,18 @@ coconut-oil-ecommerce/
 ├── frontend/ # React frontend
 ├── .github/ # GitHub Actions workflows
 └── .devcontainer/ # Codespaces configuration
+
+## 🛠️ Quick Start
+
+### Prerequisites
+- Node.js 18+
+- MongoDB Atlas account
+- Paystack account (for payments)
+- Cloudinary account (for images)
+
+### Development Setup
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/cofiemorridev/mor.git
+   cd mor/coconut-oil-ecommerce

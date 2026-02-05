@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Setup Test</h1>
+    <div id="status">
+        <p>Checking setup...</p>
+    </div>
+    <script>
+        async function testBackend() {
+            try {
+                const response = await fetch('http://localhost:5000/api/health');
+                if (response.ok) {
+                    return { success: true, message: 'Backend is running' };
+                } else {
+                    return { success: false, message: 'Backend responded with error' };
+                }
+            } catch (error) {
+                return { success: false, message: 'Backend connection failed' };
+            }
+        }
+        
+        async function runTests() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '<p>Testing backend connection...</p>';
+            
+            const backendTest = await testBackend();
+            
+            let html = '<h2>Test Results:</h2>';
+            html += `<p class="${backendTest.success ? 'success' : 'error'}">Backend: ${backendTest.message}</p>`;
+            html += `<p class="success">Frontend: Running (this page)</p>`;
+            
+            statusDiv.innerHTML = html;
+        }
+        
+        runTests();
+    </script>
+</body>
+</html>
