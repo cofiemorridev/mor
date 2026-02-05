@@ -1,5 +1,4 @@
 const mongoose = require('mongoose');
-const logger = require('../utils/logger');
 
 const connectDB = async () => {
   try {
@@ -15,16 +14,13 @@ const connectDB = async () => {
     const conn = await mongoose.connect(mongoURI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
-      serverSelectionTimeoutMS: 5000, // Timeout after 5s instead of 30s
-      socketTimeoutMS: 45000, // Close sockets after 45s of inactivity
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
     });
 
-    logger.info(`MongoDB Connected: ${conn.connection.host}`);
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
     return conn;
   } catch (error) {
-    logger.error(`Error connecting to MongoDB: ${error.message}`);
     console.error(`❌ Error connecting to MongoDB: ${error.message}`);
     
     // Don't exit in development - allow the app to run with limited functionality
@@ -32,6 +28,7 @@ const connectDB = async () => {
       process.exit(1);
     } else {
       console.log('⚠️ Running in development mode without database. Some features will be limited.');
+      console.log('   Using demo mode for testing.');
       return null;
     }
   }

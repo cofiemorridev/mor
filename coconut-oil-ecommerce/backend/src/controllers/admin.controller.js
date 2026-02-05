@@ -1,13 +1,16 @@
 const Admin = require('../models/Admin.model');
 const { generateToken } = require('../utils/generateToken');
-const logger = require('../utils/logger');
 
 /**
  * Check if database is available
  */
 const checkDbAvailability = () => {
-  // Check if Admin model is connected (simplified check)
-  return Admin.db.readyState === 1;
+  try {
+    // Check if Admin model is connected
+    return Admin.db.readyState === 1;
+  } catch (error) {
+    return false;
+  }
 };
 
 /**
@@ -17,15 +20,6 @@ const checkDbAvailability = () => {
  */
 const login = async (req, res) => {
   try {
-    // Check database availability
-    if (!checkDbAvailability()) {
-      return res.status(503).json({
-        success: false,
-        message: 'Database not available. Please check MongoDB connection.',
-        demoMode: true
-      });
-    }
-
     const { email, password } = req.body;
 
     // Validate input
@@ -36,29 +30,37 @@ const login = async (req, res) => {
       });
     }
 
-    // For demo purposes, allow login with demo credentials
-    if (email === 'admin@coconutoil.com' && password === 'Admin123!') {
-      // Generate token for demo user
-      const token = generateToken({
-        id: 'demo-admin-id',
-        email: 'admin@coconutoil.com',
-        role: 'super-admin',
-        demo: true
-      });
-
-      logger.info('Demo admin logged in');
-
-      return res.status(200).json({
-        success: true,
-        message: 'Demo login successful (using demo credentials)',
-        token,
-        admin: {
+    // Check database availability
+    const dbAvailable = checkDbAvailability();
+    
+    if (!dbAvailable) {
+      // Demo mode - allow login with demo credentials
+      if (email === 'admin@coconutoil.com' && password === 'Admin123!') {
+        const token = generateToken({
           id: 'demo-admin-id',
-          name: 'Demo Admin',
           email: 'admin@coconutoil.com',
           role: 'super-admin',
           demo: true
-        },
+        });
+
+        return res.status(200).json({
+          success: true,
+          message: 'Demo login successful (database not available)',
+          token,
+          admin: {
+            id: 'demo-admin-id',
+            name: 'Demo Admin',
+            email: 'admin@coconutoil.com',
+            role: 'super-admin',
+            demo: true
+          },
+          demoMode: true
+        });
+      }
+      
+      return res.status(503).json({
+        success: false,
+        message: 'Database not available. Using demo credentials: admin@coconutoil.com / Admin123!',
         demoMode: true
       });
     }
@@ -91,9 +93,6 @@ const login = async (req, res) => {
       });
     }
 
-    // Update last login
-    await admin.updateLastLogin();
-
     // Generate token
     const token = generateToken({
       id: admin._id,
@@ -101,10 +100,7 @@ const login = async (req, res) => {
       role: admin.role
     });
 
-    // Prepare admin data for response
     const adminData = admin.toJSON();
-
-    logger.info(`Admin logged in: ${admin.email}`);
 
     res.status(200).json({
       success: true,
@@ -114,7 +110,7 @@ const login = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Admin login error:', error);
+    console.error('Admin login error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -154,7 +150,7 @@ const getProfile = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Get admin profile error:', error);
+    console.error('Get admin profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -210,8 +206,6 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    logger.info(`Admin profile updated: ${admin.email}`);
-
     res.status(200).json({
       success: true,
       message: 'Profile updated successfully',
@@ -219,81 +213,7 @@ const updateProfile = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error('Update admin profile error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
-    });
-  }
-};
-
-/**
- * @desc    Change password
- * @route   PUT /api/admin/change-password
- * @access  Private (Admin)
- */
-const changePassword = async (req, res) => {
-  try {
-    // Check database availability
-    if (!checkDbAvailability()) {
-      return res.status(503).json({
-        success: false,
-        message: 'Database not available. Password changes disabled in demo mode.',
-        demoMode: true
-      });
-    }
-
-    const { currentPassword, newPassword } = req.body;
-
-    // Validate input
-    if (!currentPassword || !newPassword) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide current and new password'
-      });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({
-        success: false,
-        message: 'New password must be at least 6 characters'
-      });
-    }
-
-    // Get admin with password
-    const admin = await Admin.findById(req.admin.id).select('+password');
-    
-    if (!admin) {
-      return res.status(404).json({
-        success: false,
-        message: 'Admin not found'
-      });
-    }
-
-    // Verify current password
-    const isPasswordValid = await admin.comparePassword(currentPassword);
-    
-    if (!isPasswordValid) {
-      return res.status(401).json({
-        success: false,
-        message: 'Current password is incorrect'
-      });
-    }
-
-    // Update password
-    admin.password = newPassword;
-    await admin.save();
-
-    logger.info(`Admin password changed: ${admin.email}`);
-
-    res.status(200).json({
-      success: true,
-      message: 'Password changed successfully'
-    });
-
-  } catch (error) {
-    logger.error('Change password error:', error);
+    console.error('Update admin profile error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error',
@@ -305,6 +225,5 @@ const changePassword = async (req, res) => {
 module.exports = {
   login,
   getProfile,
-  updateProfile,
-  changePassword
+  updateProfile
 };
