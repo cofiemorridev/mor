@@ -3,25 +3,27 @@
  * For Ghana: GHS currency, Mobile Money, Cards, Bank Transfer
  */
 
-const { get } = require('./env');
+// We'll use process.env directly since the 'get' function is causing issues
+const dotenv = require('dotenv');
+dotenv.config();
 
 const paystackConfig = {
   // API Keys - from environment variables
-  secretKey: get('PAYSTACK_SECRET_KEY', ''),
-  publicKey: get('PAYSTACK_PUBLIC_KEY', ''),
+  secretKey: process.env.PAYSTACK_SECRET_KEY || '',
+  publicKey: process.env.PAYSTACK_PUBLIC_KEY || '',
   
   // Ghana-specific settings
   currency: 'GHS', // Ghana Cedis
   channels: ['card', 'bank', 'mobile_money'],
   
   // URLs
-  baseUrl: get('PAYSTACK_BASE_URL', 'https://api.paystack.co'),
+  baseUrl: process.env.PAYSTACK_BASE_URL || 'https://api.paystack.co',
   
   // Webhook secret (for verifying webhook signatures)
-  webhookSecret: get('PAYSTACK_WEBHOOK_SECRET', ''),
+  webhookSecret: process.env.PAYSTACK_WEBHOOK_SECRET || '',
   
   // Test mode settings
-  testMode: get('NODE_ENV', 'development') !== 'production',
+  testMode: (process.env.NODE_ENV || 'development') !== 'production',
   
   // Ghana mobile money providers
   mobileMoneyProviders: {

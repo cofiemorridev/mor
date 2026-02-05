@@ -4,6 +4,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const path = require('path');
+const mongoose = require('mongoose');
 
 // Import configurations
 const { validateEnv } = require('./config/env');
@@ -14,10 +15,8 @@ const { notFound, errorHandler } = require('./middleware/error.middleware');
 // Import routes
 const adminRoutes = require('./routes/admin.routes');
 const productRoutes = require('./routes/product.routes');
-const orderRoutes = require('./routes/order.routes');
-const paymentRoutes = require('./routes/payment.routes');
-const orderRoutes = require('./routes/order.routes');
-const paymentRoutes = require('./routes/payment.routes');
+const orderRoutes = require('./routes/demo.order.routes');  // Using demo order routes
+const paymentRoutes = require('./routes/payment.routes');   // Payment routes added
 
 // Initialize app
 const app = express();
@@ -28,8 +27,11 @@ validateEnv();
 // Security middleware
 app.use(helmet());
 
-// CORS - allow all origins in development
-app.use(cors());
+// CORS
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true
+}));
 
 // Body parser
 app.use(express.json());
@@ -43,51 +45,42 @@ if (process.env.NODE_ENV === 'development') {
 // Static files
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
+// Rate limiting (only in production)
+if (process.env.NODE_ENV === 'production') {
+  const rateLimit = require('express-rate-limit');
+  const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests from this IP, please try again later.'
+  });
+  app.use('/api/', limiter);
+}
+
 // API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/products', productRoutes);
-app.use('/api/orders', require('./routes/demo.order.routes'));
-app.use('/api/orders', require('./routes/demo.order.routes'));
+app.use('/api/orders', orderRoutes);
+app.use('/api/payment', paymentRoutes);  // Payment routes mounted
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
+  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
   res.status(200).json({
     status: 'OK',
     message: 'Backend is healthy',
     timestamp: new Date().toISOString(),
-    service: 'coconut-oil-api',
-    endpoints: {
-      admin: '/api/admin',
-      products: '/api/products',
-      orders: '/api/orders',
-      health: '/api/health'
-    },
-    demoMode: true
+    database: dbStatus,
+    demoMode: dbStatus === 'disconnected',
+    service: 'coconut-oil-api'
   });
 });
 
-// Test endpoint for demo
+// Simple test endpoint
 app.get('/api/test', (req, res) => {
   res.status(200).json({
     success: true,
     message: 'API is working!',
     timestamp: new Date().toISOString()
-  });
-});
-
-// Demo order endpoint
-app.get('/api/demo/order', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'Order system demo',
-    endpoints: {
-      createOrder: 'POST /api/orders',
-      getOrder: 'GET /api/orders/:id (use order number)',
-      cancelOrder: 'PUT /api/orders/:id/cancel',
-      adminGetAll: 'GET /api/orders (requires admin token)',
-      adminUpdateStatus: 'PUT /api/orders/:id/status (requires admin token)',
-      adminStats: 'GET /api/orders/stats/dashboard (requires admin token)'
-    }
   });
 });
 
