@@ -7,19 +7,21 @@ const {
   updateOrderStatus,
   updatePaymentStatus,
   cancelOrder,
-  getOrderStats
+  getOrderStats,
+  getRecentOrders
 } = require('../controllers/order.controller');
 const { verifyJWT, isAdmin } = require('../middleware/auth.middleware');
 
 // Public routes
 router.post('/', createOrder);
-router.get('/:id', getOrderById); // Can be accessed with order number
-router.put('/:id/cancel', cancelOrder);
+router.get('/:id', getOrderById);
 
-// Protected admin routes
+// Admin routes (protected)
 router.get('/', verifyJWT, isAdmin, getAllOrders);
 router.put('/:id/status', verifyJWT, isAdmin, updateOrderStatus);
-router.put('/:id/payment', updatePaymentStatus); // Used by webhook (no auth)
-router.get('/stats/dashboard', verifyJWT, isAdmin, getOrderStats);
+router.put('/:id/payment', verifyJWT, isAdmin, updatePaymentStatus);
+router.put('/:id/cancel', verifyJWT, isAdmin, cancelOrder);
+router.get('/stats', verifyJWT, isAdmin, getOrderStats);
+router.get('/recent', verifyJWT, isAdmin, getRecentOrders);
 
 module.exports = router;

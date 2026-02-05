@@ -3,8 +3,7 @@ const mongoose = require('mongoose');
 const orderItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
-    required: true
+    ref: 'Product'
   },
   name: {
     type: String,
@@ -12,20 +11,17 @@ const orderItemSchema = new mongoose.Schema({
   },
   price: {
     type: Number,
-    required: true,
-    min: [0, 'Price must be positive']
+    required: true
   },
   quantity: {
     type: Number,
     required: true,
-    min: [1, 'Quantity must be at least 1'],
-    default: 1
+    min: 1
   },
   image: {
-    type: String,
-    default: ''
+    type: String
   }
-});
+}, { _id: true });
 
 const orderSchema = new mongoose.Schema({
   orderNumber: {
@@ -36,84 +32,60 @@ const orderSchema = new mongoose.Schema({
   customerInfo: {
     name: {
       type: String,
-      required: [true, 'Please provide customer name'],
-      trim: true,
-      maxlength: [100, 'Name cannot be more than 100 characters']
+      required: [true, 'Customer name is required']
     },
     email: {
       type: String,
-      required: [true, 'Please provide customer email'],
-      lowercase: true,
-      trim: true,
-      match: [
-        /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
-        'Please provide a valid email'
-      ]
+      required: [true, 'Customer email is required'],
+      lowercase: true
     },
     phone: {
       type: String,
-      required: [true, 'Please provide customer phone number'],
-      trim: true
+      required: [true, 'Customer phone is required']
     },
     whatsappNumber: {
-      type: String,
-      trim: true
+      type: String
     }
   },
   shippingAddress: {
     street: {
       type: String,
-      required: [true, 'Please provide street address'],
-      trim: true,
-      maxlength: [200, 'Street address cannot be more than 200 characters']
+      required: [true, 'Street address is required']
     },
     city: {
       type: String,
-      required: [true, 'Please provide city'],
-      trim: true,
-      maxlength: [100, 'City cannot be more than 100 characters']
+      required: [true, 'City is required']
     },
     region: {
       type: String,
-      required: [true, 'Please provide region'],
+      required: [true, 'Region is required'],
       enum: [
-        'Greater Accra',
-        'Ashanti',
-        'Western',
-        'Central',
-        'Eastern',
-        'Volta',
-        'Northern',
-        'Upper East',
-        'Upper West',
-        'Brong Ahafo'
-      ],
-      default: 'Greater Accra'
+        'Greater Accra', 'Ashanti', 'Western', 'Central', 'Volta',
+        'Eastern', 'Northern', 'Upper East', 'Upper West', 'Brong-Ahafo'
+      ]
     },
     country: {
       type: String,
       default: 'Ghana'
     },
     zipCode: {
-      type: String,
-      trim: true
+      type: String
     }
   },
   items: [orderItemSchema],
   subtotal: {
     type: Number,
     required: true,
-    min: [0, 'Subtotal must be positive']
+    min: 0
   },
   deliveryFee: {
     type: Number,
-    default: 0,
-    min: [0, 'Delivery fee cannot be negative']
+    default: 0
   },
   total: {
     type: Number,
     required: true,
-    min: [0, 'Total must be positive']
+    min: 0
   },
   paymentMethod: {
     type: String,
@@ -126,8 +98,7 @@ const orderSchema = new mongoose.Schema({
     default: 'pending'
   },
   paystackReference: {
-    type: String,
-    trim: true
+    type: String
   },
   orderStatus: {
     type: String,
@@ -138,101 +109,42 @@ const orderSchema = new mongoose.Schema({
     type: Date
   },
   notes: {
-    type: String,
-    maxlength: [500, 'Notes cannot be more than 500 characters']
+    type: String
   },
-  isPaid: {
-    type: Boolean,
-    default: false
+  createdAt: {
+    type: Date,
+    default: Date.now
   },
-  paidAt: {
-    type: Date
-  },
-  isDelivered: {
-    type: Boolean,
-    default: false
-  },
-  deliveredAt: {
-    type: Date
+  updatedAt: {
+    type: Date,
+    default: Date.now
   }
 }, {
   timestamps: true
 });
 
-// Generate order number before saving
+// Pre-save middleware to generate order number
 orderSchema.pre('save', async function(next) {
-  if (this.isNew) {
-    const date = new Date();
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    
-    // Find the latest order for today
-    const todayStart = new Date(date.setHours(0, 0, 0, 0));
-    const todayEnd = new Date(date.setHours(23, 59, 59, 999));
-    
-    const lastOrder = await this.constructor.findOne({
-      createdAt: {
-        $gte: todayStart,
-        $lte: todayEnd
-      }
-    }).sort({ createdAt: -1 });
-    
-    let sequence = 1;
-    if (lastOrder && lastOrder.orderNumber) {
-      const lastSeq = parseInt(lastOrder.orderNumber.split('-').pop());
-      if (!isNaN(lastSeq)) {
-        sequence = lastSeq + 1;
-      }
-    }
-    
-    this.orderNumber = `CO-${year}${month}${day}-${String(sequence).padStart(4, '0')}`;
+  if (!this.orderNumber) {
+    const count = await this.constructor.countDocuments();
+    this.orderNumber = `CO-${new Date().getFullYear()}-${String(count + 1).padStart(4, '0')}`;
   }
   next();
 });
 
-// Virtual for formatted order date
-orderSchema.virtual('formattedDate').get(function() {
-  return this.createdAt.toLocaleDateString('en-GH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
+// Pre-save middleware to update timestamp
+orderSchema.pre('save', function(next) {
+  this.updatedAt = Date.now();
+  next();
 });
 
-// Virtual for estimated delivery date (3-5 business days)
-orderSchema.virtual('estimatedDeliveryDate').get(function() {
-  const deliveryDate = new Date(this.createdAt);
-  deliveryDate.setDate(deliveryDate.getDate() + 5); // 5 days for Ghana
-  return deliveryDate.toLocaleDateString('en-GH', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-});
-
-// Method to update stock quantities
-orderSchema.methods.updateProductStock = async function(action = 'decrease') {
-  for (const item of this.items) {
-    const product = await mongoose.model('Product').findById(item.product);
-    if (product) {
-      if (action === 'decrease') {
-        product.stockQuantity -= item.quantity;
-      } else if (action === 'increase') {
-        product.stockQuantity += item.quantity;
-      }
-      
-      product.inStock = product.stockQuantity > 0;
-      await product.save();
-    }
-  }
-};
-
-// Method to check if order can be cancelled (within 1 hour)
-orderSchema.methods.canBeCancelled = function() {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-  return this.createdAt > oneHourAgo && this.orderStatus === 'pending';
-};
+// Indexes for better performance
+orderSchema.index({ orderNumber: 1 });
+orderSchema.index({ 'customerInfo.email': 1 });
+orderSchema.index({ 'customerInfo.phone': 1 });
+orderSchema.index({ createdAt: -1 });
+orderSchema.index({ orderStatus: 1 });
+orderSchema.index({ paymentStatus: 1 });
 
 const Order = mongoose.model('Order', orderSchema);
 

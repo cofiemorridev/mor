@@ -1,10 +1,7 @@
 const Order = require('../models/Order.model');
-const Product = require('../models/Product.model');
-const { formatToGHS, calculateDeliveryFee, calculateOrderTotal } = require('../utils/formatPrice');
-const { sendOrderConfirmation, sendAdminNotification } = require('../services/email.service');
 
 /**
- * @desc    Create new order
+ * @desc    Create a new order
  * @route   POST /api/orders
  * @access  Public
  */
@@ -14,109 +11,76 @@ const createOrder = async (req, res) => {
       customerInfo,
       shippingAddress,
       items,
+      subtotal,
+      deliveryFee,
+      total,
       paymentMethod,
       notes
     } = req.body;
 
     // Validate required fields
-    if (!customerInfo || !customerInfo.name || !customerInfo.email || !customerInfo.phone) {
+    if (!customerInfo || !shippingAddress || !items || !subtotal || !total) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide customer information (name, email, phone)'
+        message: 'Please provide all required order information'
       });
     }
 
-    if (!shippingAddress || !shippingAddress.street || !shippingAddress.city || !shippingAddress.region) {
+    // Validate items array
+    if (!Array.isArray(items) || items.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide complete shipping address'
+        message: 'Order must contain at least one item'
       });
     }
-
-    if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please add at least one item to the order'
-      });
-    }
-
-    // Validate and process items
-    const processedItems = [];
-    let subtotal = 0;
-
-    for (const item of items) {
-      if (!item.product || !item.quantity || item.quantity < 1) {
-        return res.status(400).json({
-          success: false,
-          message: 'Each item must have a product ID and quantity of at least 1'
-        });
-      }
-
-      // In demo mode, use mock product data
-      const product = {
-        _id: item.product,
-        name: item.name || 'Demo Product',
-        price: item.price || 0,
-        images: item.image ? [item.image] : []
-      };
-
-      const itemTotal = product.price * item.quantity;
-      subtotal += itemTotal;
-
-      processedItems.push({
-        product: product._id,
-        name: product.name,
-        price: product.price,
-        quantity: item.quantity,
-        image: product.images[0] || ''
-      });
-    }
-
-    // Calculate delivery fee based on region
-    const deliveryFee = calculateDeliveryFee(shippingAddress.region);
-    
-    // Calculate totals
-    const totals = calculateOrderTotal(processedItems, deliveryFee);
 
     // Create order
-    const order = await Order.create({
+    const orderData = {
       customerInfo,
       shippingAddress,
-      items: processedItems,
-      subtotal: totals.subtotal,
-      deliveryFee: totals.deliveryFee,
-      total: totals.total,
+      items,
+      subtotal: parseFloat(subtotal),
+      deliveryFee: deliveryFee ? parseFloat(deliveryFee) : 0,
+      total: parseFloat(total),
       paymentMethod: paymentMethod || 'mobile_money',
       notes: notes || ''
-    });
-
-    // Format order for response
-    const formattedOrder = {
-      ...order.toObject(),
-      formattedSubtotal: formatToGHS(order.subtotal),
-      formattedDeliveryFee: formatToGHS(order.deliveryFee),
-      formattedTotal: formatToGHS(order.total),
-      formattedDate: order.formattedDate,
-      estimatedDeliveryDate: order.estimatedDeliveryDate
     };
 
-    // Send notifications (in demo mode, just log)
-    console.log(`📦 New order created: ${order.orderNumber}`);
-    console.log(`   Customer: ${customerInfo.name}`);
-    console.log(`   Total: ${formatToGHS(order.total)}`);
-    console.log(`   Items: ${items.length} item(s)`);
+    // Calculate delivery fee if not provided
+    if (!deliveryFee) {
+      // Simple delivery fee calculation based on region
+      const region = shippingAddress.region;
+      const regionDeliveryFees = {
+        'Greater Accra': 15.00,
+        'Ashanti': 25.00,
+        'Western': 30.00,
+        'Central': 20.00,
+        'Volta': 25.00,
+        'Eastern': 22.00,
+        'Northern': 40.00,
+        'Upper East': 45.00,
+        'Upper West': 45.00,
+        'Brong-Ahafo': 35.00
+      };
+      
+      orderData.deliveryFee = regionDeliveryFees[region] || 25.00;
+      orderData.total = orderData.subtotal + orderData.deliveryFee;
+    }
+
+    const order = await Order.create(orderData);
 
     res.status(201).json({
       success: true,
       message: 'Order created successfully',
-      order: formattedOrder
+      data: order,
+      orderNumber: order.orderNumber
     });
 
   } catch (error) {
     console.error('Create order error:', error);
     
     if (error.name === 'ValidationError') {
-      const messages = Object.values(error.errors).map(err => err.message);
+      const messages = Object.values(error.errors).map(val => val.message);
       return res.status(400).json({
         success: false,
         message: 'Validation error',
@@ -124,18 +88,16 @@ const createOrder = async (req, res) => {
       });
     }
 
-    // Handle duplicate order number
-    if (error.code === 11000) {
+    if (error.code === 11000) { // Duplicate key error
       return res.status(400).json({
         success: false,
-        message: 'Order number already exists. Please try again.'
+        message: 'Order number already exists'
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Server error while creating order'
     });
   }
 };
@@ -143,95 +105,57 @@ const createOrder = async (req, res) => {
 /**
  * @desc    Get all orders (admin only)
  * @route   GET /api/orders
- * @access  Private/Admin
+ * @access  Admin
  */
 const getAllOrders = async (req, res) => {
   try {
-    const {
-      status,
+    const { 
+      page = 1, 
+      limit = 10, 
+      status, 
       paymentStatus,
       startDate,
-      endDate,
-      search,
-      sort = '-createdAt',
-      page = 1,
-      limit = 20
+      endDate 
     } = req.query;
 
-    // Build query
-    let query = {};
-
-    // Filter by order status
-    if (status) {
-      query.orderStatus = status;
-    }
-
-    // Filter by payment status
-    if (paymentStatus) {
-      query.paymentStatus = paymentStatus;
-    }
-
-    // Filter by date range
+    const query = {};
+    
+    // Add filters
+    if (status) query.orderStatus = status;
+    if (paymentStatus) query.paymentStatus = paymentStatus;
+    
+    // Date range filter
     if (startDate || endDate) {
       query.createdAt = {};
-      if (startDate) {
-        query.createdAt.$gte = new Date(startDate);
-      }
-      if (endDate) {
-        query.createdAt.$lte = new Date(endDate);
-      }
+      if (startDate) query.createdAt.$gte = new Date(startDate);
+      if (endDate) query.createdAt.$lte = new Date(endDate);
     }
 
-    // Search by order number, customer name, email, or phone
-    if (search) {
-      query.$or = [
-        { orderNumber: { $regex: search, $options: 'i' } },
-        { 'customerInfo.name': { $regex: search, $options: 'i' } },
-        { 'customerInfo.email': { $regex: search, $options: 'i' } },
-        { 'customerInfo.phone': { $regex: search, $options: 'i' } }
-      ];
-    }
+    const skip = (parseInt(page) - 1) * parseInt(limit);
 
-    // Execute query with pagination
-    const skip = (page - 1) * limit;
-
-    const ordersPromise = Order.find(query)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .lean();
-
-    const totalPromise = Order.countDocuments(query);
-
-    const [orders, total] = await Promise.all([ordersPromise, totalPromise]);
-
-    // Format orders for response
-    const formattedOrders = orders.map(order => ({
-      ...order,
-      formattedSubtotal: formatToGHS(order.subtotal),
-      formattedDeliveryFee: formatToGHS(order.deliveryFee),
-      formattedTotal: formatToGHS(order.total),
-      formattedDate: new Date(order.createdAt).toLocaleDateString('en-GH'),
-      itemCount: order.items.length
-    }));
-
-    const totalPages = Math.ceil(total / limit);
+    const [orders, total] = await Promise.all([
+      Order.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      Order.countDocuments(query)
+    ]);
 
     res.status(200).json({
       success: true,
       count: orders.length,
       total,
-      totalPages,
-      currentPage: Number(page),
-      orders: formattedOrders
+      page: parseInt(page),
+      pages: Math.ceil(total / parseInt(limit)),
+      data: orders
     });
 
   } catch (error) {
     console.error('Get all orders error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Server error while fetching orders'
     });
   }
 };
@@ -239,25 +163,21 @@ const getAllOrders = async (req, res) => {
 /**
  * @desc    Get order by ID or order number
  * @route   GET /api/orders/:id
- * @access  Public (with order number) / Private (admin)
+ * @access  Public (with order number)
  */
 const getOrderById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Check if it's an order number (format: CO-YYYYMMDD-XXXX)
-    const isOrderNumber = /^CO-\d{8}-\d{4}$/.test(id);
-
-    let query;
-    if (isOrderNumber) {
-      query = { orderNumber: id };
+    let order;
+    
+    // Try to find by order number first
+    if (id.startsWith('CO-')) {
+      order = await Order.findOne({ orderNumber: id }).lean();
     } else {
-      query = { _id: id };
+      // Try to find by MongoDB ID
+      order = await Order.findById(id).lean();
     }
-
-    const order = await Order.findOne(query)
-      .populate('items.product', 'name images category')
-      .lean();
 
     if (!order) {
       return res.status(404).json({
@@ -266,46 +186,24 @@ const getOrderById = async (req, res) => {
       });
     }
 
-    // Format order for response
-    const formattedOrder = {
-      ...order,
-      formattedSubtotal: formatToGHS(order.subtotal),
-      formattedDeliveryFee: formatToGHS(order.deliveryFee),
-      formattedTotal: formatToGHS(order.total),
-      formattedDate: new Date(order.createdAt).toLocaleDateString('en-GH', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }),
-      items: order.items.map(item => ({
-        ...item,
-        formattedPrice: formatToGHS(item.price),
-        itemTotal: formatToGHS(item.price * item.quantity)
-      })),
-      canBeCancelled: new Date(order.createdAt) > new Date(Date.now() - 60 * 60 * 1000) && order.orderStatus === 'pending'
-    };
-
     res.status(200).json({
       success: true,
-      order: formattedOrder
+      data: order
     });
 
   } catch (error) {
-    console.error('Get order by ID error:', error);
+    console.error('Get order error:', error);
     
     if (error.name === 'CastError') {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
-        message: 'Order not found'
+        message: 'Invalid order ID format'
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Server error while fetching order'
     });
   }
 };
@@ -313,17 +211,17 @@ const getOrderById = async (req, res) => {
 /**
  * @desc    Update order status (admin only)
  * @route   PUT /api/orders/:id/status
- * @access  Private/Admin
+ * @access  Admin
  */
 const updateOrderStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, notes } = req.body;
+    const { status } = req.body;
 
     if (!status) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide order status'
+        message: 'Status is required'
       });
     }
 
@@ -332,7 +230,7 @@ const updateOrderStatus = async (req, res) => {
     if (!validStatuses.includes(status)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid order status'
+        message: `Invalid status. Must be one of: ${validStatuses.join(', ')}`
       });
     }
 
@@ -345,72 +243,55 @@ const updateOrderStatus = async (req, res) => {
       });
     }
 
-    // Update order status
+    // Update status
     order.orderStatus = status;
     
-    // Update timestamps for specific statuses
-    if (status === 'delivered') {
-      order.isDelivered = true;
-      order.deliveredAt = new Date();
-    } else if (status === 'cancelled') {
-      // Restore stock if order is cancelled
-      await order.updateProductStock('increase');
+    // If delivered, set delivery date
+    if (status === 'delivered' && !order.deliveryDate) {
+      order.deliveryDate = new Date();
     }
-
-    if (notes) {
-      order.notes = notes;
-    }
-
+    
     await order.save();
-
-    // Format response
-    const formattedOrder = {
-      ...order.toObject(),
-      formattedSubtotal: formatToGHS(order.subtotal),
-      formattedDeliveryFee: formatToGHS(order.deliveryFee),
-      formattedTotal: formatToGHS(order.total),
-      formattedDate: order.formattedDate
-    };
-
-    // Log status update
-    console.log(`📦 Order ${order.orderNumber} status updated to: ${status}`);
-    if (order.customerInfo.email) {
-      console.log(`   Notification would be sent to: ${order.customerInfo.email}`);
-    }
 
     res.status(200).json({
       success: true,
       message: `Order status updated to ${status}`,
-      order: formattedOrder
+      data: order
     });
 
   } catch (error) {
     console.error('Update order status error:', error);
     
     if (error.name === 'CastError') {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
-        message: 'Order not found'
+        message: 'Invalid order ID format'
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Server error',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: 'Server error while updating order status'
     });
   }
 };
 
 /**
- * @desc    Update payment status
+ * @desc    Update payment status (for webhooks/internal use)
  * @route   PUT /api/orders/:id/payment
- * @access  Private (Paystack webhook)
+ * @access  Internal
  */
 const updatePaymentStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { paymentStatus, paystackReference, isPaid } = req.body;
+    const { paymentStatus, paystackReference } = req.body;
+
+    if (!paymentStatus) {
+      return res.status(400).json({
+        success: false,
+        message: 'Payment status is required'
+      });
+    }
 
     const order = await Order.findById(id);
 
@@ -421,66 +302,51 @@ const updatePaymentStatus = async (req, res) => {
       });
     }
 
-    // Update payment info
-    if (paymentStatus) {
-      order.paymentStatus = paymentStatus;
-    }
-    
+    // Update payment status
+    order.paymentStatus = paymentStatus;
     if (paystackReference) {
       order.paystackReference = paystackReference;
     }
     
-    if (isPaid !== undefined) {
-      order.isPaid = isPaid;
-      if (isPaid) {
-        order.paidAt = new Date();
-        order.paymentStatus = 'paid';
-        
-        // Update stock when payment is confirmed
-        await order.updateProductStock('decrease');
-        
-        // Update order status to confirmed
-        if (order.orderStatus === 'pending') {
-          order.orderStatus = 'confirmed';
-        }
-      }
+    // If payment is successful, mark order as confirmed
+    if (paymentStatus === 'paid' && order.orderStatus === 'pending') {
+      order.orderStatus = 'confirmed';
     }
-
+    
     await order.save();
-
-    // Log payment update
-    console.log(`💰 Order ${order.orderNumber} payment status: ${order.paymentStatus}`);
-    console.log(`   Paid: ${order.isPaid ? 'Yes' : 'No'}`);
-    console.log(`   Reference: ${order.paystackReference || 'N/A'}`);
 
     res.status(200).json({
       success: true,
-      message: 'Payment status updated',
-      order: {
-        orderNumber: order.orderNumber,
-        paymentStatus: order.paymentStatus,
-        isPaid: order.isPaid,
-        orderStatus: order.orderStatus
-      }
+      message: `Payment status updated to ${paymentStatus}`,
+      data: order
     });
 
   } catch (error) {
     console.error('Update payment status error:', error);
+    
+    if (error.name === 'CastError') {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid order ID format'
+      });
+    }
+
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error while updating payment status'
     });
   }
 };
 
 /**
- * @desc    Cancel order
+ * @desc    Cancel order (admin only)
  * @route   PUT /api/orders/:id/cancel
- * @access  Public (with order number) / Private (admin)
+ * @access  Admin
  */
 const cancelOrder = async (req, res) => {
   try {
     const { id } = req.params;
+    const { reason } = req.body;
 
     const order = await Order.findById(id);
 
@@ -492,107 +358,152 @@ const cancelOrder = async (req, res) => {
     }
 
     // Check if order can be cancelled
-    if (!order.canBeCancelled()) {
+    if (order.orderStatus === 'delivered' || order.orderStatus === 'cancelled') {
       return res.status(400).json({
         success: false,
-        message: 'Order cannot be cancelled. Only pending orders within 1 hour of creation can be cancelled.'
+        message: `Order cannot be cancelled because it is already ${order.orderStatus}`
       });
     }
 
     // Update order status
     order.orderStatus = 'cancelled';
-    order.paymentStatus = 'refunded';
-    
-    // Restore stock
-    await order.updateProductStock('increase');
+    order.notes = order.notes ? `${order.notes}\nCancelled: ${reason || 'No reason provided'}` : 
+                               `Cancelled: ${reason || 'No reason provided'}`;
     
     await order.save();
-
-    console.log(`❌ Order ${order.orderNumber} cancelled by ${req.admin ? 'admin' : 'customer'}`);
 
     res.status(200).json({
       success: true,
       message: 'Order cancelled successfully',
-      order: {
-        orderNumber: order.orderNumber,
-        orderStatus: order.orderStatus,
-        paymentStatus: order.paymentStatus
-      }
+      data: order
     });
 
   } catch (error) {
     console.error('Cancel order error:', error);
     
     if (error.name === 'CastError') {
-      return res.status(404).json({
+      return res.status(400).json({
         success: false,
-        message: 'Order not found'
+        message: 'Invalid order ID format'
       });
     }
 
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error while cancelling order'
     });
   }
 };
 
 /**
- * @desc    Get order statistics (admin only)
+ * @desc    Get order statistics for dashboard
  * @route   GET /api/orders/stats
- * @access  Private/Admin
+ * @access  Admin
  */
 const getOrderStats = async (req, res) => {
   try {
-    // For demo mode, return mock stats
-    const stats = {
-      totalOrders: 0,
-      totalRevenue: 0,
-      pendingOrders: 0,
-      deliveredOrders: 0,
-      cancelledOrders: 0,
-      averageOrderValue: 0,
-      monthlyRevenue: [],
-      orderStatusDistribution: {
-        pending: 0,
-        confirmed: 0,
-        processing: 0,
-        shipped: 0,
-        delivered: 0,
-        cancelled: 0
-      },
-      paymentStatusDistribution: {
-        pending: 0,
-        paid: 0,
-        failed: 0,
-        refunded: 0
-      },
-      topRegions: []
-    };
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const startOfYear = new Date(today.getFullYear(), 0, 1);
 
-    // Format currency
-    const formattedStats = {
-      ...stats,
-      formattedTotalRevenue: formatToGHS(stats.totalRevenue),
-      formattedAverageOrderValue: formatToGHS(stats.averageOrderValue),
-      formattedMonthlyRevenue: stats.monthlyRevenue.map(item => ({
-        ...item,
-        revenue: formatToGHS(item.revenue)
-      }))
+    const [
+      totalOrders,
+      todayOrders,
+      thisMonthOrders,
+      thisYearOrders,
+      pendingOrders,
+      deliveredOrders,
+      totalRevenue,
+      todayRevenue,
+      averageOrderValue
+    ] = await Promise.all([
+      Order.countDocuments(),
+      Order.countDocuments({ createdAt: { $gte: startOfToday } }),
+      Order.countDocuments({ createdAt: { $gte: startOfMonth } }),
+      Order.countDocuments({ createdAt: { $gte: startOfYear } }),
+      Order.countDocuments({ orderStatus: 'pending' }),
+      Order.countDocuments({ orderStatus: 'delivered' }),
+      Order.aggregate([
+        { $match: { orderStatus: { $ne: 'cancelled' }, paymentStatus: 'paid' } },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ]),
+      Order.aggregate([
+        { 
+          $match: { 
+            createdAt: { $gte: startOfToday },
+            orderStatus: { $ne: 'cancelled' },
+            paymentStatus: 'paid'
+          } 
+        },
+        { $group: { _id: null, total: { $sum: '$total' } } }
+      ]),
+      Order.aggregate([
+        { $match: { orderStatus: { $ne: 'cancelled' }, paymentStatus: 'paid' } },
+        { $group: { _id: null, average: { $avg: '$total' } } }
+      ])
+    ]);
+
+    const stats = {
+      counts: {
+        total: totalOrders,
+        today: todayOrders,
+        thisMonth: thisMonthOrders,
+        thisYear: thisYearOrders,
+        pending: pendingOrders,
+        delivered: deliveredOrders
+      },
+      revenue: {
+        total: totalRevenue[0]?.total || 0,
+        today: todayRevenue[0]?.total || 0,
+        average: averageOrderValue[0]?.average || 0
+      },
+      percentageChange: {
+        daily: todayOrders > 0 ? ((todayOrders / totalOrders) * 100).toFixed(1) : 0,
+        monthly: thisMonthOrders > 0 ? ((thisMonthOrders / totalOrders) * 100).toFixed(1) : 0
+      }
     };
 
     res.status(200).json({
       success: true,
-      message: 'Order statistics (demo mode)',
-      stats: formattedStats,
-      demoMode: true
+      data: stats
     });
 
   } catch (error) {
     console.error('Get order stats error:', error);
     res.status(500).json({
       success: false,
-      message: 'Server error'
+      message: 'Server error while fetching order statistics'
+    });
+  }
+};
+
+/**
+ * @desc    Get recent orders (for admin dashboard)
+ * @route   GET /api/orders/recent
+ * @access  Admin
+ */
+const getRecentOrders = async (req, res) => {
+  try {
+    const { limit = 10 } = req.query;
+
+    const recentOrders = await Order.find()
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit))
+      .select('orderNumber customerInfo.name total orderStatus paymentStatus createdAt')
+      .lean();
+
+    res.status(200).json({
+      success: true,
+      count: recentOrders.length,
+      data: recentOrders
+    });
+
+  } catch (error) {
+    console.error('Get recent orders error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error while fetching recent orders'
     });
   }
 };
@@ -604,5 +515,6 @@ module.exports = {
   updateOrderStatus,
   updatePaymentStatus,
   cancelOrder,
-  getOrderStats
+  getOrderStats,
+  getRecentOrders
 };
