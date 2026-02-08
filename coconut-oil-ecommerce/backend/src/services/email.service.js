@@ -1,6 +1,4 @@
 const nodemailer = require('nodemailer');
-const fs = require('fs').promises;
-const path = require('path');
 
 class EmailService {
   constructor() {
@@ -50,20 +48,6 @@ class EmailService {
         success: false, 
         error: error.message 
       };
-    }
-  }
-
-  /**
-   * Load HTML template
-   */
-  async loadTemplate(templateName, data = {}) {
-    try {
-      // In a real implementation, you would have template files
-      // For now, we'll generate HTML directly
-      return this.generateTemplateHTML(templateName, data);
-    } catch (error) {
-      console.error('Error loading template:', error);
-      return this.generateBasicTemplate(templateName, data);
     }
   }
 
@@ -278,7 +262,7 @@ class EmailService {
    */
   async sendOrderConfirmation(order) {
     try {
-      const html = await this.loadTemplate('order_confirmation', {
+      const html = this.generateTemplateHTML('order_confirmation', {
         customerName: order.customerInfo.name,
         orderNumber: order.orderNumber,
         orderDate: new Date(order.createdAt).toLocaleDateString('en-US', {
@@ -322,7 +306,7 @@ class EmailService {
    */
   async sendPaymentConfirmation(order) {
     try {
-      const html = await this.loadTemplate('payment_confirmation', {
+      const html = this.generateTemplateHTML('payment_confirmation', {
         customerName: order.customerInfo.name,
         orderNumber: order.orderNumber,
         paymentReference: order.paystackReference || 'N/A',
@@ -361,7 +345,7 @@ class EmailService {
         'cancelled': 'Your order has been cancelled as requested.'
       };
 
-      const html = await this.loadTemplate('order_status_update', {
+      const html = this.generateTemplateHTML('order_status_update', {
         customerName: order.customerInfo.name,
         orderNumber: order.orderNumber,
         oldStatus: oldStatus.charAt(0).toUpperCase() + oldStatus.slice(1),
@@ -494,7 +478,7 @@ class EmailService {
           
           <p><em>Please restock this product soon to avoid stockouts.</em></p>
           
-          <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/products/${product.id}">
+          <p><a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/admin/products/${product._id}">
             View Product in Admin Panel
           </a></p>
         </body>
