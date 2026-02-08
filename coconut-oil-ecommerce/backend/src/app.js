@@ -1,93 +1,63 @@
 const express = require('express');
-require('express-async-errors');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
-const path = require('path');
-const mongoose = require('mongoose');
-
-// Import configurations
-const { validateEnv } = require('./config/env');
-
-// Import middleware
-const { notFound, errorHandler } = require('./middleware/error.middleware');
+const corsConfig = require('./config/cors');
+const errorMiddleware = require('./middleware/error.middleware');
 
 // Import routes
 const adminRoutes = require('./routes/admin.routes');
 const productRoutes = require('./routes/product.routes');
-const orderRoutes = require('./routes/demo.order.routes');  // Using demo order routes
-const paymentRoutes = require('./routes/payment.routes');   // Payment routes added
+const orderRoutes = require('./routes/order.routes');
+const paymentRoutes = require('./routes/payment.routes');
+const testRoutes = require('./routes/test.routes'); // Add this line
 
-// Initialize app
 const app = express();
 
-// Validate environment variables
-validateEnv();
-
-// Security middleware
+// Middleware
 app.use(helmet());
-
-// CORS
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true
-}));
-
-// Body parser
+app.use(cors(corsConfig));
+app.use(morgan('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-// Static files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// Rate limiting (only in production)
-if (process.env.NODE_ENV === 'production') {
-  const rateLimit = require('express-rate-limit');
-  const limiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 100,
-    message: 'Too many requests from this IP, please try again later.'
-  });
-  app.use('/api/', limiter);
-}
-
-// API Routes
-app.use('/api/admin', adminRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/payment', paymentRoutes);  // Payment routes mounted
+// Static files (for uploaded images)
+app.use('/uploads', express.static('uploads'));
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  const dbStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
-  res.status(200).json({
-    status: 'OK',
-    message: 'Backend is healthy',
+  res.json({ 
+    status: 'ok', 
     timestamp: new Date().toISOString(),
-    database: dbStatus,
-    demoMode: dbStatus === 'disconnected',
-    service: 'coconut-oil-api'
+    service: 'coconut-oil-ecommerce-api'
   });
 });
 
-// Simple test endpoint
+// Test endpoint
 app.get('/api/test', (req, res) => {
-  res.status(200).json({
-    success: true,
-    message: 'API is working!',
+  res.json({ 
+    success: true, 
+    message: 'API is working',
     timestamp: new Date().toISOString()
   });
 });
 
-// 404 handler
-app.use(notFound);
+// Routes
+app.use('/api/admin', adminRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/payment', paymentRoutes);
+app.use('/api/test', testRoutes); // Add this line
 
-// Error handler
-app.use(errorHandler);
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`
+  });
+});
+
+// Error handling middleware
+app.use(errorMiddleware);
 
 module.exports = app;
