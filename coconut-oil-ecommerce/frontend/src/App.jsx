@@ -1,168 +1,209 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
-import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext';
+import { AdminAuthProvider } from './context/AdminAuthContext';
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
-import Home from './pages/Home';
-import Products from './pages/Products';
-import ProductDetail from './pages/ProductDetail';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import PaymentSuccess from './pages/PaymentSuccess';
-import PaymentFailure from './pages/PaymentFailure';
-import About from './pages/About';
-import Contact from './pages/Contact';
-import AdminLogin from './admin/AdminLogin';
-import AdminLayout from './admin/AdminLayout';
-import Dashboard from './admin/Dashboard';
-import ProductsAdmin from './admin/Products';
-import OrdersAdmin from './admin/Orders';
-import Customers from './admin/Customers';
-import Analytics from './admin/Analytics';
-import Settings from './admin/Settings';
-import NotFound from './pages/NotFound';
+import Loader from './components/common/Loader';
+import PageLoader from './components/common/PageLoader';
+import './styles/index.css';
+
+// Lazy load pages for code splitting
+const Home = lazy(() => import('./pages/Home'));
+const Products = lazy(() => import('./pages/Products'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const About = lazy(() => import('./pages/About'));
+const Contact = lazy(() => import('./pages/Contact'));
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess'));
+const PaymentFailure = lazy(() => import('./pages/PaymentFailure'));
+const NotFound = lazy(() => import('./pages/NotFound'));
+
+// Admin pages (lazy loaded)
+const AdminLogin = lazy(() => import('./admin/AdminLogin'));
+const Dashboard = lazy(() => import('./admin/Dashboard'));
+const AdminProducts = lazy(() => import('./admin/Products'));
+const AdminOrders = lazy(() => import('./admin/Orders'));
+
+// Admin Layout
+const AdminLayout = lazy(() => import('./admin/AdminLayout'));
 
 // Protected Route Component
-const ProtectedRoute = ({ children }) => {
-  const { isAuthenticated, loading } = useAdminAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/admin/login" />;
-  }
-
-  return children;
-};
+const ProtectedRoute = lazy(() => import('./routes/ProtectedRoute'));
 
 function App() {
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    // Simulate initial loading
+    const timer = setTimeout(() => setLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (loading) {
+    return <PageLoader />;
+  }
+
   return (
-    <Router>
-      <AdminAuthProvider>
-        <CartProvider>
-          <div className="min-h-screen flex flex-col bg-gray-50">
-            <Routes>
-              {/* Public Routes */}
-              <Route path="/" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+    <AdminAuthProvider>
+      <CartProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <Home />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/products" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/products" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <Products />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/products/:id" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/products/:id" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <ProductDetail />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/cart" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/cart" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <Cart />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/checkout" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/checkout" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <Checkout />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/payment/success" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/payment/success" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <PaymentSuccess />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/payment/failure" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/payment/failure" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <PaymentFailure />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/about" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/about" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <About />
-                  </main>
-                  <Footer />
-                </>
-              } />
-              
-              <Route path="/contact" element={
-                <>
-                  <Navbar />
-                  <main className="flex-grow">
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            <Route path="/contact" element={
+              <>
+                <Navbar />
+                <main className="min-h-screen">
+                  <Suspense fallback={<Loader />}>
                     <Contact />
-                  </main>
-                  <Footer />
-                </>
+                  </Suspense>
+                </main>
+                <Footer />
+              </>
+            } />
+            
+            {/* Admin Routes */}
+            <Route path="/admin/login" element={
+              <Suspense fallback={<Loader />}>
+                <AdminLogin />
+              </Suspense>
+            } />
+            
+            <Route path="/admin" element={
+              <Suspense fallback={<Loader />}>
+                <AdminLayout />
+              </Suspense>
+            }>
+              <Route path="dashboard" element={
+                <Suspense fallback={<Loader />}>
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                </Suspense>
               } />
-              
-              {/* Admin Routes */}
-              <Route path="/admin/login" element={<AdminLogin />} />
-              
-              <Route path="/admin" element={
-                <ProtectedRoute>
-                  <AdminLayout />
-                </ProtectedRoute>
-              }>
-                <Route index element={<Navigate to="dashboard" />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="products" element={<ProductsAdmin />} />
-                <Route path="orders" element={<OrdersAdmin />} />
-                <Route path="customers" element={<Customers />} />
-                <Route path="analytics" element={<Analytics />} />
-                <Route path="settings" element={<Settings />} />
-              </Route>
-              
-              {/* 404 Route */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </div>
-        </CartProvider>
-      </AdminAuthProvider>
-    </Router>
+              <Route path="products" element={
+                <Suspense fallback={<Loader />}>
+                  <ProtectedRoute>
+                    <AdminProducts />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+              <Route path="orders" element={
+                <Suspense fallback={<Loader />}>
+                  <ProtectedRoute>
+                    <AdminOrders />
+                  </ProtectedRoute>
+                </Suspense>
+              } />
+            </Route>
+            
+            {/* 404 Route */}
+            <Route path="*" element={
+              <Suspense fallback={<Loader />}>
+                <NotFound />
+              </Suspense>
+            } />
+          </Routes>
+        </BrowserRouter>
+      </CartProvider>
+    </AdminAuthProvider>
   );
 }
 
