@@ -80,11 +80,35 @@ const productRoutes = require('./routes/product.routes');
 const orderRoutes = require('./routes/order.routes');
 const paymentRoutes = require('./routes/payment.routes');
 const testRoutes = require('./routes/test.routes');
+const seoRoutes = require('./routes/seo.routes');
 
 // Apply caching to public routes
 app.use('/api/products', cacheMiddleware(600), productRoutes); // 10 minutes
 app.use('/api/payment/channels', cacheMiddleware(3600), paymentRoutes); // 1 hour
 app.use('/api/test', cacheMiddleware(300), testRoutes); // 5 minutes
+
+// SEO routes with caching
+app.use('/sitemap', cacheMiddleware(86400), seoRoutes); // 24 hours
+
+// Robots.txt
+app.get('/robots.txt', cacheMiddleware(86400), (req, res) => {
+  const baseUrl = process.env.FRONTEND_URL || `${req.protocol}://${req.get('host')}`;
+  const robotsTxt = `User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /cart/
+Disallow: /checkout/
+Disallow: /api/
+
+Sitemap: ${baseUrl}/sitemap/sitemap.xml
+Sitemap: ${baseUrl}/sitemap/products.xml
+
+# Crawl delay
+Crawl-delay: 2`;
+  
+  res.header('Content-Type', 'text/plain');
+  res.send(robotsTxt);
+});
 
 // Admin routes (no cache)
 app.use('/api/admin', adminRoutes);
