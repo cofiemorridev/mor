@@ -1,71 +1,68 @@
 /**
- * Custom error classes
+ * Global error handling middleware
  */
-class NotFoundError extends Error {
-  constructor(message) {
-    super(message);
-    this.name = 'NotFoundError';
-    this.statusCode = 404;
-  }
-}
+const errorMiddleware = (err, req, res, next) => {
+  console.error('Error:', err);
 
-/**
- * Global error handler middleware
- */
-const errorHandler = (err, req, res, next) => {
-  let error = { ...err };
-  error.message = err.message;
-
-  // Log error
-  console.error({
-    message: err.message,
-    stack: err.stack,
-    path: req.path,
-    method: req.method
-  });
+  // Default error
+  let statusCode = err.statusCode || 500;
+  let message = err.message || 'Internal Server Error';
+  let errors = err.errors || null;
 
   // Mongoose validation error
   if (err.name === 'ValidationError') {
-    const message = Object.values(err.errors).map(val => val.message).join(', ');
-    error = new Error(message);
-    error.statusCode = 400;
+    statusCode = 400;
+    message = 'Validation Error';
+    errors = Object.values(err.errors).map(error => ({
+      field: error.path,
+      message: error.message
+    }));
   }
 
-  // Mongoose duplicate key
+  // Mongoose duplicate key error
   if (err.code === 11000) {
+    statusCode = 400;
+    message = 'Duplicate field value entered';
     const field = Object.keys(err.keyValue)[0];
-    const message = `Duplicate value entered for ${field}`;
-    error = new Error(message);
-    error.statusCode = 400;
+    errors = [{ field, message: `${field} already exists` }];
   }
 
-  // Mongoose bad ObjectId
-  if (err.name === 'CastError') {
-    const message = 'Resource not found';
-    error = new NotFoundError(message);
+  // JWT errors
+  if (err.name === 'JsonWebTokenError') {
+    statusCode = 401;
+    message = 'Invalid token';
   }
 
-  // Set default status code and message
-  const statusCode = error.statusCode || 500;
-  const message = error.message || 'Server Error';
+  if (err.name === 'TokenExpiredError') {
+    statusCode = 401;
+    message = 'Token expired';
+  }
 
+  // Multer errors (file upload)
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    message = 'File upload error';
+    
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      message = 'File size too large. Maximum size is 5MB.';
+    }
+    
+    if (err.code === 'LIMIT_FILE_COUNT') {
+      message = 'Too many files. Maximum 5 files allowed.';
+    }
+    
+    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+      message = 'Unexpected file field';
+    }
+  }
+
+  // Send error response
   res.status(statusCode).json({
     success: false,
     message,
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    errors,
+    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
   });
 };
 
-/**
- * 404 handler middleware
- */
-const notFound = (req, res, next) => {
-  const error = new NotFoundError(`Not Found - ${req.originalUrl}`);
-  next(error);
-};
-
-module.exports = {
-  errorHandler,
-  notFound,
-  NotFoundError
-};
+module.exports = errorMiddleware;

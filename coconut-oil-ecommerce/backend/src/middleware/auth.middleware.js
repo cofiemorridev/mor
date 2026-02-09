@@ -1,81 +1,85 @@
-const { verifyToken } = require('../utils/generateToken');
+const jwt = require('jsonwebtoken');
+const Admin = require('../models/Admin.model');
 
 /**
- * Middleware to verify JWT token
+ * Verify JWT token
  */
-const verifyJWT = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   try {
-    // Get token from header
-    const authHeader = req.headers.authorization;
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    const token = req.header('Authorization')?.replace('Bearer ', '');
+
+    if (!token) {
       return res.status(401).json({
         success: false,
         message: 'Access denied. No token provided.'
       });
     }
 
-    const token = authHeader.split(' ')[1];
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const admin = await Admin.findById(decoded.id).select('-password');
 
-    // Verify token
-    const decoded = verifyToken(token);
-    
-    // Attach admin info to request
-    req.admin = {
-      id: decoded.id,
-      email: decoded.email,
-      role: decoded.role
-    };
-
-    next();
-  } catch (error) {
-    console.error('Token verification error:', error);
-    
-    if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        success: false,
-        message: 'Token expired. Please login again.'
-      });
-    }
-
-    if (error.name === 'JsonWebTokenError') {
+    if (!admin) {
       return res.status(401).json({
         success: false,
         message: 'Invalid token.'
       });
     }
 
-    res.status(401).json({
+    req.admin = admin;
+    req.token = token;
+    next();
+  } catch (error) {
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token.'
+      });
+    }
+    
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Token has expired.'
+      });
+    }
+
+    return res.status(500).json({
       success: false,
-      message: 'Authentication failed.'
+      message: 'Server error'
     });
   }
 };
 
 /**
- * Middleware to check if user is admin
+ * Check if user is admin
  */
 const isAdmin = (req, res, next) => {
-  if (!req.admin) {
-    return res.status(401).json({
-      success: false,
-      message: 'Access denied. No admin information found.'
-    });
-  }
-
-  // Check if user has admin role
-  const allowedRoles = ['admin', 'super-admin'];
-  if (!allowedRoles.includes(req.admin.role)) {
+  if (req.admin && (req.admin.role === 'admin' || req.admin.role === 'super-admin')) {
+    next();
+  } else {
     return res.status(403).json({
       success: false,
       message: 'Access denied. Admin privileges required.'
     });
   }
+};
 
-  next();
+/**
+ * Check if user is super admin
+ */
+const isSuperAdmin = (req, res, next) => {
+  if (req.admin && req.admin.role === 'super-admin') {
+    next();
+  } else {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Super admin privileges required.'
+    });
+  }
 };
 
 module.exports = {
-  verifyJWT,
-  isAdmin
+  verifyToken,
+  isAdmin,
+  isSuperAdmin
 };
