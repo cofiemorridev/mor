@@ -10,4 +10,5 @@ app.listen(PORT, () => {
   console.log(`✅ Products: http://localhost:${PORT}/api/products`);
   console.log(`✅ Admin test: http://localhost:${PORT}/api/admin/test`);
   console.log(`✅ Payment test: http://localhost:${PORT}/api/payment/test`);
+  console.log(`\n🔗 Frontend should connect to: http://localhost:${PORT}`);
 });

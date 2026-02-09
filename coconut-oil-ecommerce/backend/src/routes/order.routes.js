@@ -71,4 +71,23 @@ router.get('/recent', (req, res) => {
   });
 });
 
+// Get order by order number
+router.get('/number/:orderNumber', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      orderNumber: req.params.orderNumber,
+      customerInfo: {
+        name: 'Test Customer',
+        email: 'test@example.com',
+        phone: '+233241234567'
+      },
+      total: 110.00,
+      orderStatus: 'pending',
+      paymentStatus: 'pending',
+      createdAt: new Date().toISOString()
+    }
+  });
+});
+
 module.exports = router;

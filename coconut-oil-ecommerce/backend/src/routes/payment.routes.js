@@ -57,7 +57,7 @@ router.get('/verify/:reference', (req, res) => {
     data: {
       reference: req.params.reference,
       status: 'success',
-      amount: 250000, // 2500 GHS in kobo
+      amount: 250000,
       currency: 'GHS',
       channel: 'mobile_money',
       paid_at: new Date().toISOString()
