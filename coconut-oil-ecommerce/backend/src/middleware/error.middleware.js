@@ -38,24 +38,6 @@ const errorMiddleware = (err, req, res, next) => {
     message = 'Token expired';
   }
 
-  // Multer errors (file upload)
-  if (err.name === 'MulterError') {
-    statusCode = 400;
-    message = 'File upload error';
-    
-    if (err.code === 'LIMIT_FILE_SIZE') {
-      message = 'File size too large. Maximum size is 5MB.';
-    }
-    
-    if (err.code === 'LIMIT_FILE_COUNT') {
-      message = 'Too many files. Maximum 5 files allowed.';
-    }
-    
-    if (err.code === 'LIMIT_UNEXPECTED_FILE') {
-      message = 'Unexpected file field';
-    }
-  }
-
   // Send error response
   res.status(statusCode).json({
     success: false,

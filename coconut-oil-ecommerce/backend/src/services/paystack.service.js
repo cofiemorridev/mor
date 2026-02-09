@@ -1,238 +1,212 @@
-/**
- * Paystack Service - Simplified version
- * Handles all Paystack API interactions with fallbacks
- */
-
-const paystackConfig = require('../config/paystack');
+const axios = require('axios');
 
 class PaystackService {
   constructor() {
-    this.secretKey = paystackConfig.secretKey;
-    this.publicKey = paystackConfig.publicKey;
-    this.baseUrl = paystackConfig.baseUrl;
-    this.currency = paystackConfig.currency;
-    this.channels = paystackConfig.channels;
-    this.testMode = paystackConfig.testMode;
+    this.secretKey = process.env.PAYSTACK_SECRET_KEY;
+    this.publicKey = process.env.PAYSTACK_PUBLIC_KEY;
+    this.baseUrl = 'https://api.paystack.co';
     
-    // Check if axios is available
+    this.axiosInstance = axios.create({
+      baseURL: this.baseUrl,
+      headers: {
+        'Authorization': `Bearer ${this.secretKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('✅ Axios available for Paystack integration');
+  }
+
+  /**
+   * Initialize payment transaction
+   */
+  async initializePayment(paymentData) {
     try {
-      this.axios = require('axios');
-      this.hasAxios = true;
-      console.log('✅ Axios available for Paystack integration');
+      // Add metadata if not present
+      if (!paymentData.metadata) {
+        paymentData.metadata = {
+          custom_fields: []
+        };
+      }
+
+      // Set currency to GHS (Ghana Cedis)
+      paymentData.currency = 'GHS';
+
+      // In development/demo mode, return mock data
+      if (process.env.NODE_ENV !== 'production' || !this.secretKey) {
+        console.log('💳 Paystack Payment Initialization (Demo Mode):');
+        console.log('Email:', paymentData.email);
+        console.log('Amount:', paymentData.amount / 100, 'GHS');
+        console.log('Metadata:', paymentData.metadata);
+
+        return {
+          success: true,
+          data: {
+            authorization_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/payment/test`,
+            access_code: 'demo_access_code',
+            reference: 'DEMO_' + Date.now()
+          }
+        };
+      }
+
+      // In production, make actual API call
+      const response = await this.axiosInstance.post('/transaction/initialize', paymentData);
+      
+      return {
+        success: true,
+        data: response.data.data
+      };
+
     } catch (error) {
-      console.warn('⚠️  Axios not available. Paystack service will run in demo mode.');
-      this.hasAxios = false;
+      console.error('Error initializing payment:', error.response?.data || error.message);
+      
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
     }
   }
 
   /**
-   * Initialize a payment transaction
+   * Verify payment transaction
    */
-  async initializePayment(paymentData) {
+  async verifyPayment(reference) {
     try {
-      const { email, amount } = paymentData;
+      // In development/demo mode, return mock verification
+      if (process.env.NODE_ENV !== 'production' || !this.secretKey) {
+        console.log('✅ Payment Verification (Demo Mode):');
+        console.log('Reference:', reference);
+
+        return {
+          success: true,
+          data: {
+            reference: reference,
+            status: 'success',
+            amount: 250000, // 2500 GHS in kobo
+            currency: 'GHS',
+            channel: 'mobile_money',
+            paid_at: new Date().toISOString(),
+            customer: {
+              email: 'test@example.com',
+              first_name: 'Demo',
+              last_name: 'Customer'
+            }
+          }
+        };
+      }
+
+      // In production, make actual API call
+      const response = await this.axiosInstance.get(`/transaction/verify/${reference}`);
       
-      // Always work in demo mode for now
       return {
         success: true,
-        authorization_url: `https://paystack.com/demo/checkout?amount=${amount}&email=${encodeURIComponent(email)}`,
-        access_code: 'demo_access_code_' + Date.now(),
-        reference: `demo_ref_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-        demo: true,
-        message: 'Demo payment initialized (real Paystack requires API keys)'
+        data: response.data.data
       };
 
     } catch (error) {
-      console.error('Paystack initialization error:', error.message);
+      console.error('Error verifying payment:', error.response?.data || error.message);
       
-      // Fallback to demo mode
+      return {
+        success: false,
+        error: error.response?.data?.message || error.message
+      };
+    }
+  }
+
+  /**
+   * Get supported payment channels
+   */
+  async getSupportedChannels() {
+    try {
+      // Return Ghana-specific payment channels
+      const channels = {
+        mobile_money: [
+          { id: 'mtn', name: 'MTN Mobile Money', icon: '📱' },
+          { id: 'vodafone', name: 'Vodafone Cash', icon: '💸' },
+          { id: 'airteltigo', name: 'AirtelTigo Money', icon: '📲' }
+        ],
+        card: [
+          { id: 'visa', name: 'Visa', icon: '💳' },
+          { id: 'mastercard', name: 'Mastercard', icon: '💳' },
+          { id: 'verve', name: 'Verve', icon: '💳' }
+        ],
+        bank_transfer: [
+          { id: 'bank', name: 'Bank Transfer', icon: '🏦' }
+        ]
+      };
+
       return {
         success: true,
-        authorization_url: 'https://paystack.com/demo',
-        access_code: 'demo_fallback',
-        reference: `fallback_${Date.now()}`,
-        demo: true,
-        fallback: true,
+        data: channels
+      };
+
+    } catch (error) {
+      console.error('Error getting payment channels:', error);
+      
+      return {
+        success: false,
         error: error.message
       };
     }
   }
 
   /**
-   * Verify a payment transaction
+   * Create transfer recipient (for payouts)
    */
-  async verifyPayment(reference) {
+  async createTransferRecipient(recipientData) {
     try {
-      // Demo mode - simulate successful payment
+      // This would be used for payouts/refunds
+      // For now, return demo data
+      
+      console.log('🏦 Transfer Recipient Creation (Demo Mode):');
+      console.log('Recipient:', recipientData);
+
       return {
         success: true,
-        verified: true,
-        demo: true,
         data: {
-          reference: reference,
-          amount: 100.00,
-          currency: this.currency,
-          status: 'paid',
-          paidAt: new Date().toISOString(),
-          gateway_response: 'Successful (Demo Mode)',
-          channel: 'demo',
-          authorization: { authorization_code: 'AUTH_demo' },
-          customer: { email: 'demo@example.com' },
-          metadata: { demo: true }
+          recipient_code: 'RCP_DEMO_' + Date.now(),
+          details: recipientData
         }
       };
 
     } catch (error) {
-      console.error('Paystack verification error:', error.message);
+      console.error('Error creating transfer recipient:', error);
       
-      // Fallback to demo verification
       return {
-        success: true,
-        verified: true,
-        demo: true,
-        fallback: true,
-        data: {
-          reference: reference,
-          amount: 100.00,
-          currency: this.currency,
-          status: 'paid',
-          paidAt: new Date().toISOString(),
-          gateway_response: 'Demo verification',
-          channel: 'demo',
-          metadata: { demo: true, fallback: true }
-        }
+        success: false,
+        error: error.message
       };
     }
   }
 
   /**
-   * Handle Paystack webhook events
+   * Initiate transfer (for payouts/refunds)
    */
-  async handleWebhook(webhookData, signature) {
+  async initiateTransfer(transferData) {
     try {
-      console.log('Processing Paystack webhook (demo mode):', webhookData.event || 'demo');
+      // This would be used for payouts/refunds
+      // For now, return demo data
+      
+      console.log('💸 Transfer Initiation (Demo Mode):');
+      console.log('Transfer:', transferData);
 
-      // Always accept webhooks in demo mode
       return {
         success: true,
-        event: 'demo_webhook',
         data: {
-          reference: webhookData.data?.reference || 'demo_ref_' + Date.now(),
-          amount: webhookData.data?.amount ? webhookData.data.amount / 100 : 100.00,
-          status: 'paid',
-          demo: true,
-          timestamp: new Date().toISOString()
+          transfer_code: 'TRF_DEMO_' + Date.now(),
+          status: 'pending',
+          ...transferData
         }
       };
 
     } catch (error) {
-      console.error('Webhook processing error:', error);
+      console.error('Error initiating transfer:', error);
+      
       return {
-        success: true, // Always return success for webhooks
-        event: 'error',
-        error: error.message,
-        demo: true
+        success: false,
+        error: error.message
       };
     }
-  }
-
-  /**
-   * Generate a unique payment reference
-   */
-  generatePaymentReference() {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 10000);
-    return `PAY_${timestamp}_${random}`;
-  }
-
-  /**
-   * Validate Ghana mobile money number
-   */
-  validateMobileMoneyNumber(phone, provider) {
-    // Remove any non-digit characters
-    const cleanPhone = phone.replace(/\D/g, '');
-    
-    // Basic validation for Ghana numbers
-    let isValid = false;
-    let formatted = cleanPhone;
-    
-    if (cleanPhone.length === 9 || cleanPhone.length === 10) {
-      isValid = true;
-      
-      // Format with country code if needed
-      if (cleanPhone.length === 9) {
-        formatted = `233${cleanPhone}`;
-      } else if (cleanPhone.startsWith('0')) {
-        formatted = `233${cleanPhone.slice(1)}`;
-      }
-      
-      // Validate provider if specified
-      if (provider) {
-        switch (provider.toUpperCase()) {
-          case 'MTN':
-            isValid = formatted.startsWith('23324') || formatted.startsWith('23354') || 
-                      formatted.startsWith('23355') || formatted.startsWith('23359');
-            break;
-          case 'VODAFONE':
-            isValid = formatted.startsWith('23320') || formatted.startsWith('23350');
-            break;
-          case 'AIRTELTIGO':
-            isValid = formatted.startsWith('23327') || formatted.startsWith('23357');
-            break;
-        }
-      }
-    }
-    
-    return {
-      isValid,
-      formatted,
-      provider: provider || (isValid ? 'GHANA' : 'INVALID')
-    };
-  }
-
-  /**
-   * Get supported payment channels
-   */
-  getSupportedChannels() {
-    return [
-      {
-        id: 'mobile_money',
-        name: 'Mobile Money',
-        description: 'Pay with MTN, Vodafone, or AirtelTigo Mobile Money',
-        providers: [
-          { id: 'mtn', name: 'MTN Mobile Money', icon: '📱' },
-          { id: 'vodafone', name: 'Vodafone Cash', icon: '💼' },
-          { id: 'tigo', name: 'AirtelTigo Money', icon: '📞' }
-        ],
-        supportedCountries: ['Ghana'],
-        currency: 'GHS',
-        demo: true
-      },
-      {
-        id: 'card',
-        name: 'Credit/Debit Card',
-        description: 'Pay with Visa, Mastercard, or Verve cards',
-        providers: [
-          { id: 'visa', name: 'Visa', icon: '💳' },
-          { id: 'mastercard', name: 'Mastercard', icon: '💳' },
-          { id: 'verve', name: 'Verve', icon: '💳' }
-        ],
-        supportedCountries: ['Ghana', 'International'],
-        currency: 'GHS',
-        demo: true
-      },
-      {
-        id: 'bank_transfer',
-        name: 'Bank Transfer',
-        description: 'Transfer directly from your bank account',
-        providers: [
-          { id: 'bank', name: 'Bank Transfer', icon: '🏦' }
-        ],
-        supportedCountries: ['Ghana'],
-        currency: 'GHS',
-        demo: true
-      }
-    ];
   }
 }
 
