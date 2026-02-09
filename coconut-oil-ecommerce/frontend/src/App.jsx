@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { CartProvider } from './context/CartContext';
 import { AdminAuthProvider } from './context/AdminAuthContext';
+import { PWAProvider } from './context/PWAContext';
 import Navbar from './components/common/Navbar';
 import Footer from './components/common/Footer';
 import Loader from './components/common/Loader';
@@ -36,6 +37,19 @@ function App() {
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
+    // Register service worker
+    if ('serviceWorker' in navigator && process.env.NODE_ENV === 'production') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/service-worker.js')
+          .then((registration) => {
+            console.log('✅ ServiceWorker registered:', registration.scope);
+          })
+          .catch((error) => {
+            console.error('❌ ServiceWorker registration failed:', error);
+          });
+      });
+    }
+
     // Simulate initial loading
     const timer = setTimeout(() => setLoading(false), 1000);
     return () => clearTimeout(timer);
@@ -46,164 +60,166 @@ function App() {
   }
 
   return (
-    <AdminAuthProvider>
-      <CartProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public Routes */}
-            <Route path="/" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <Home />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/products" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <Products />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/products/:id" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <ProductDetail />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/cart" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <Cart />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/checkout" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <Checkout />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/payment/success" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <PaymentSuccess />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/payment/failure" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <PaymentFailure />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/about" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <About />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            <Route path="/contact" element={
-              <>
-                <Navbar />
-                <main className="min-h-screen">
-                  <Suspense fallback={<Loader />}>
-                    <Contact />
-                  </Suspense>
-                </main>
-                <Footer />
-              </>
-            } />
-            
-            {/* Admin Routes */}
-            <Route path="/admin/login" element={
-              <Suspense fallback={<Loader />}>
-                <AdminLogin />
-              </Suspense>
-            } />
-            
-            <Route path="/admin" element={
-              <Suspense fallback={<Loader />}>
-                <AdminLayout />
-              </Suspense>
-            }>
-              <Route path="dashboard" element={
+    <PWAProvider>
+      <AdminAuthProvider>
+        <CartProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <Home />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/products" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <Products />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/products/:id" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <ProductDetail />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/cart" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <Cart />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/checkout" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <Checkout />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/payment/success" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <PaymentSuccess />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/payment/failure" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <PaymentFailure />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/about" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <About />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              <Route path="/contact" element={
+                <>
+                  <Navbar />
+                  <main className="min-h-screen">
+                    <Suspense fallback={<Loader />}>
+                      <Contact />
+                    </Suspense>
+                  </main>
+                  <Footer />
+                </>
+              } />
+              
+              {/* Admin Routes */}
+              <Route path="/admin/login" element={
                 <Suspense fallback={<Loader />}>
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
+                  <AdminLogin />
                 </Suspense>
               } />
-              <Route path="products" element={
+              
+              <Route path="/admin" element={
                 <Suspense fallback={<Loader />}>
-                  <ProtectedRoute>
-                    <AdminProducts />
-                  </ProtectedRoute>
+                  <AdminLayout />
+                </Suspense>
+              }>
+                <Route path="dashboard" element={
+                  <Suspense fallback={<Loader />}>
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  </Suspense>
+                } />
+                <Route path="products" element={
+                  <Suspense fallback={<Loader />}>
+                    <ProtectedRoute>
+                      <AdminProducts />
+                    </ProtectedRoute>
+                  </Suspense>
+                } />
+                <Route path="orders" element={
+                  <Suspense fallback={<Loader />}>
+                    <ProtectedRoute>
+                      <AdminOrders />
+                    </ProtectedRoute>
+                  </Suspense>
+                } />
+              </Route>
+              
+              {/* 404 Route */}
+              <Route path="*" element={
+                <Suspense fallback={<Loader />}>
+                  <NotFound />
                 </Suspense>
               } />
-              <Route path="orders" element={
-                <Suspense fallback={<Loader />}>
-                  <ProtectedRoute>
-                    <AdminOrders />
-                  </ProtectedRoute>
-                </Suspense>
-              } />
-            </Route>
-            
-            {/* 404 Route */}
-            <Route path="*" element={
-              <Suspense fallback={<Loader />}>
-                <NotFound />
-              </Suspense>
-            } />
-          </Routes>
-        </BrowserRouter>
-      </CartProvider>
-    </AdminAuthProvider>
+            </Routes>
+          </BrowserRouter>
+        </CartProvider>
+      </AdminAuthProvider>
+    </PWAProvider>
   );
 }
 
