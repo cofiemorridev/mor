@@ -1,0 +1,16 @@
+<!-- Conditional Google Analytics - Only loads in production -->
+<% if (htmlWebpackPlugin.options.isProduction) { %>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-XXXXXXXXXX');
+</script>
+<% } else { %>
+<!-- Development Mode: Analytics mocked to console -->
+<script>
+  console.log('📊 Analytics: Running in development mode');
+  console.log('📊 All events will be logged to console, not sent to GA');
+</script>
+<% } %>
