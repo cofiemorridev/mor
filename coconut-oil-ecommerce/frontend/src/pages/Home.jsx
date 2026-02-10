@@ -1,78 +1,74 @@
 import React from 'react';
-import { useProducts } from '../context/ProductsContext';
-import ProductCard from '../components/product/ProductCard';
+import { Link } from 'react-router-dom';
+import Loader from '../components/common/Loader';
 
 const Home = () => {
-  const { featuredProducts, loading } = useProducts();
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-xl text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
   return (
     <div>
       {/* Hero Section */}
-      <div className="bg-gradient-to-r from-green-50 to-green-100 rounded-2xl p-8 mb-12">
-        <div className="max-w-3xl mx-auto text-center">
-          <h1 className="text-5xl font-bold text-green-800 mb-4">
-            Premium Coconut Oil Products
-          </h1>
-          <p className="text-xl text-gray-700 mb-8">
-            Discover our collection of 100% natural, cold-pressed coconut oils 
-            for cooking, skincare, haircare, and wellness.
+      <div className="relative bg-gradient-to-r from-green-600 to-green-800 text-white">
+        <div className="container mx-auto px-4 py-24 md:py-32">
+          <div className="max-w-2xl">
+            <h1 className="text-4xl md:text-6xl font-bold mb-6">
+              Pure, Natural Coconut Oil from Ghana
+            </h1>
+            <p className="text-xl mb-8 opacity-90">
+              Experience the authentic taste and benefits of 100% natural, 
+              cold-pressed coconut oil. Perfect for cooking, beauty, and wellness.
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <Link
+                to="/products"
+                className="bg-white text-green-700 hover:bg-gray-100 px-8 py-4 rounded-lg text-lg font-semibold transition-colors"
+              >
+                Shop Now
+              </Link>
+              <Link
+                to="/about"
+                className="bg-transparent border-2 border-white hover:bg-white/10 px-8 py-4 rounded-lg text-lg font-semibold transition-colors"
+              >
+                Learn More
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Features Section */}
+      <div className="container mx-auto px-4 py-16">
+        <h2 className="text-3xl font-bold text-center mb-12">Why Choose Our Coconut Oil?</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="text-center p-6">
+            <div className="text-4xl mb-4">🥥</div>
+            <h3 className="text-xl font-semibold mb-3">100% Natural & Pure</h3>
+            <p className="text-gray-600">No additives, no preservatives. Just pure coconut goodness.</p>
+          </div>
+          <div className="text-center p-6">
+            <div className="text-4xl mb-4">❄️</div>
+            <h3 className="text-xl font-semibold mb-3">Cold-Pressed</h3>
+            <p className="text-gray-600">Preserves all natural nutrients and flavor.</p>
+          </div>
+          <div className="text-center p-6">
+            <div className="text-4xl mb-4">✨</div>
+            <h3 className="text-xl font-semibold mb-3">Multipurpose Use</h3>
+            <p className="text-gray-600">Great for cooking, skincare, haircare, and more.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA Section */}
+      <div className="bg-green-50 py-16">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-6">Ready to Experience Pure Coconut Oil?</h2>
+          <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            Join thousands of satisfied customers enjoying our premium coconut oil.
           </p>
-          <a
-            href="/products"
-            className="inline-block bg-green-600 text-white px-8 py-3 rounded-lg text-lg font-semibold hover:bg-green-700 transition"
+          <Link
+            to="/products"
+            className="inline-block bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-colors"
           >
-            Shop Now
-          </a>
-        </div>
-      </div>
-
-      {/* Featured Products */}
-      <div className="mb-12">
-        <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">
-          Featured Products
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {featuredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
-      </div>
-
-      {/* Benefits Section */}
-      <div className="bg-gray-50 rounded-2xl p-8">
-        <h2 className="text-3xl font-bold text-gray-800 mb-8 text-center">
-          Why Choose Our Coconut Oil?
-        </h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="text-center p-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🌿</span>
-            </div>
-            <h3 className="text-xl font-bold mb-2">100% Natural</h3>
-            <p className="text-gray-600">No additives, preservatives, or chemicals</p>
-          </div>
-          <div className="text-center p-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">❄️</span>
-            </div>
-            <h3 className="text-xl font-bold mb-2">Cold Pressed</h3>
-            <p className="text-gray-600">Preserves natural nutrients and flavor</p>
-          </div>
-          <div className="text-center p-4">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <span className="text-2xl">🚚</span>
-            </div>
-            <h3 className="text-xl font-bold mb-2">Free Shipping</h3>
-            <p className="text-gray-600">Free delivery on orders over ₵100</p>
-          </div>
+            Shop Our Products
+          </Link>
         </div>
       </div>
     </div>

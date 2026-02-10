@@ -1,112 +1,42 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { 
-  initGA, 
-  trackPageView, 
-  trackEvent, 
-  trackProductView, 
-  trackAddToCart, 
-  trackCheckoutStep, 
-  trackPurchase,
-  trackSearch,
-  getMockAnalyticsData,
-  devLogger
-} from '../utils/analytics';
+import React, { createContext, useContext, useState, useCallback } from 'react';
 
-const AnalyticsContext = createContext();
-
-export const useAnalytics = () => {
-  const context = useContext(AnalyticsContext);
-  if (!context) {
-    throw new Error('useAnalytics must be used within AnalyticsProvider');
-  }
-  return context;
-};
+export const AnalyticsContext = createContext();
 
 export const AnalyticsProvider = ({ children }) => {
   const [analyticsEvents, setAnalyticsEvents] = useState([]);
-  const [mockData, setMockData] = useState(getMockAnalyticsData());
 
-  useEffect(() => {
-    // Initialize analytics
-    initGA();
-    
-    // Track initial page view
-    trackPageView(window.location.pathname);
-    
-    // Listen for route changes
-    const handleRouteChange = () => {
-      trackPageView(window.location.pathname);
+  const trackEvent = useCallback((eventName, eventData = {}) => {
+    const event = {
+      name: eventName,
+      data: eventData,
+      timestamp: new Date().toISOString(),
     };
     
-    window.addEventListener('popstate', handleRouteChange);
+    setAnalyticsEvents(prev => [...prev, event]);
     
-    // Update mock data every 30 seconds (simulates live updates)
-    const interval = setInterval(() => {
-      setMockData(getMockAnalyticsData());
-    }, 30000);
+    // Log to console for development
+    console.log(`[Analytics] ${eventName}:`, eventData);
     
-    return () => {
-      window.removeEventListener('popstate', handleRouteChange);
-      clearInterval(interval);
-    };
+    // Here you would normally send to Google Analytics, etc.
+    // For now, we just log to console
+    
+    return event;
   }, []);
 
-  // Track events and store them for dev dashboard
-  const handleTrackEvent = (event, data) => {
-    const eventData = {
-      timestamp: new Date().toISOString(),
-      event,
-      data,
-    };
-    
-    setAnalyticsEvents(prev => [eventData, ...prev.slice(0, 49)]);
-    
-    // Map to specific tracking functions
-    switch (event) {
-      case 'page_view':
-        trackPageView(data.path);
-        break;
-      case 'product_view':
-        trackProductView(data.productId, data.productName, data.category, data.price);
-        break;
-      case 'add_to_cart':
-        trackAddToCart(data.productId, data.productName, data.quantity, data.price);
-        break;
-      case 'checkout_step':
-        trackCheckoutStep(data.step, data.option);
-        break;
-      case 'purchase':
-        trackPurchase(data.transactionId, data.value, data.items);
-        break;
-      case 'search':
-        trackSearch(data.searchTerm, data.resultsCount);
-        break;
-      default:
-        trackEvent(data);
-    }
-  };
-
   const value = {
-    // Tracking functions
-    trackPageView: (path) => handleTrackEvent('page_view', { path }),
-    trackProductView: (productId, productName, category, price) => 
-      handleTrackEvent('product_view', { productId, productName, category, price }),
-    trackAddToCart: (productId, productName, quantity, price) => 
-      handleTrackEvent('add_to_cart', { productId, productName, quantity, price }),
-    trackCheckoutStep: (step, option) => 
-      handleTrackEvent('checkout_step', { step, option }),
-    trackPurchase: (transactionId, value, items) => 
-      handleTrackEvent('purchase', { transactionId, value, items }),
-    trackSearch: (searchTerm, resultsCount) => 
-      handleTrackEvent('search', { searchTerm, resultsCount }),
-    trackEvent: (data) => handleTrackEvent('custom_event', data),
-    
-    // Analytics data
+    trackEvent,
     analyticsEvents,
-    mockData,
-    
-    // Development logger
-    devLogger,
+    // Add backward-compatible methods
+    trackProductView: (id, name, category, price) => 
+      trackEvent('product_view', { id, name, category, price }),
+    trackAddToCart: (id, name, quantity, price) => 
+      trackEvent('add_to_cart', { id, name, quantity, price }),
+    trackCheckoutStep: (step, option) => 
+      trackEvent('checkout_step', { step, option }),
+    trackPurchase: (transactionId, total, items) => 
+      trackEvent('purchase', { transactionId, total, items }),
+    trackSearch: (searchTerm, resultsCount) => 
+      trackEvent('search', { searchTerm, resultsCount }),
   };
 
   return (
@@ -116,4 +46,11 @@ export const AnalyticsProvider = ({ children }) => {
   );
 };
 
-export default AnalyticsContext;
+// Hook for using analytics context
+export const useAnalytics = () => {
+  const context = useContext(AnalyticsContext);
+  if (!context) {
+    throw new Error('useAnalytics must be used within an AnalyticsProvider');
+  }
+  return context;
+};

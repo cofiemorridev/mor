@@ -1,14 +1,51 @@
-import { useAnalytics } from '../context/AnalyticsContext';
+import { useAnalytics as useAnalyticsContext } from '../context/AnalyticsContext';
 
-export const useProductAnalytics = (product) => {
+// Main hook that components should import
+export const useAnalytics = () => {
   const { 
-    trackProductView, 
-    trackAddToCart 
-  } = useAnalytics();
+    trackEvent,
+    analyticsEvents
+  } = useAnalyticsContext();
+
+  // Helper functions for common events
+  const trackProductView = (productId, name, category, price) => {
+    trackEvent('product_view', { productId, name, category, price });
+  };
+
+  const trackAddToCart = (productId, name, quantity, price) => {
+    trackEvent('add_to_cart', { productId, name, quantity, price });
+  };
+
+  const trackCheckoutStep = (step, option = '') => {
+    trackEvent('checkout_step', { step, option });
+  };
+
+  const trackPurchase = (transactionId, total, items = []) => {
+    trackEvent('purchase', { transactionId, total, items });
+  };
+
+  const trackSearch = (searchTerm, resultsCount = 0) => {
+    trackEvent('search', { searchTerm, resultsCount });
+  };
+
+  return {
+    trackEvent,
+    trackProductView,
+    trackAddToCart,
+    trackCheckoutStep,
+    trackPurchase,
+    trackSearch,
+    analyticsEvents,
+  };
+};
+
+// Specific hooks for different contexts
+export const useProductAnalytics = (product) => {
+  const analytics = useAnalytics();
 
   const handleProductView = () => {
     if (product) {
-      trackProductView(
+      analytics.trackProductView(
         product.id, 
         product.name, 
         product.category, 
@@ -19,7 +56,7 @@ export const useProductAnalytics = (product) => {
 
   const handleAddToCart = (quantity = 1) => {
     if (product) {
-      trackAddToCart(
+      analytics.trackAddToCart(
         product.id, 
         product.name, 
         quantity, 
@@ -35,17 +72,14 @@ export const useProductAnalytics = (product) => {
 };
 
 export const useCheckoutAnalytics = () => {
-  const { 
-    trackCheckoutStep, 
-    trackPurchase 
-  } = useAnalytics();
+  const analytics = useAnalytics();
 
   const handleCheckoutStep = (step, option = '') => {
-    trackCheckoutStep(step, option);
+    analytics.trackCheckoutStep(step, option);
   };
 
   const handlePurchase = (transactionId, total, items = []) => {
-    trackPurchase(transactionId, total, items);
+    analytics.trackPurchase(transactionId, total, items);
   };
 
   return {
@@ -55,10 +89,10 @@ export const useCheckoutAnalytics = () => {
 };
 
 export const useSearchAnalytics = () => {
-  const { trackSearch } = useAnalytics();
+  const analytics = useAnalytics();
 
   const handleSearch = (searchTerm, resultsCount = 0) => {
-    trackSearch(searchTerm, resultsCount);
+    analytics.trackSearch(searchTerm, resultsCount);
   };
 
   return {
@@ -66,4 +100,5 @@ export const useSearchAnalytics = () => {
   };
 };
 
+// Default export for backward compatibility
 export default useAnalytics;
