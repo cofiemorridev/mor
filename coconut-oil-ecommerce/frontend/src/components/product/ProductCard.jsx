@@ -1,17 +1,20 @@
 import React from 'react';
-import { useAnalytics } from '../../context/AnalyticsContext';
+import { useAnalytics } from '../../hooks/useAnalytics';
 
 const ProductCard = ({ product }) => {
-  const { trackProductView, trackAddToCart } = useAnalytics();
+  const { useProductAnalytics } = useAnalytics();
+  const { handleProductView, handleAddToCart } = useProductAnalytics(product);
 
   const handleViewClick = () => {
-    trackProductView(product.id, product.name, product.category, product.price);
+    handleProductView();
+    // Navigate to product detail page
     window.location.href = `/products/${product.id}`;
   };
 
   const handleAddToCartClick = (e) => {
     e.stopPropagation();
-    trackAddToCart(product.id, product.name, 1, product.price);
+    handleAddToCart(1);
+    // Add to cart logic here
     alert(`Added ${product.name} to cart!`);
   };
 

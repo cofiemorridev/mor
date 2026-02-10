@@ -1,156 +1,114 @@
-import React, { useState, useEffect } from 'react';
-import { useAnalytics } from '../hooks/useAnalytics';
-import CartItem from '../components/cart/CartItem';
-import CartSummary from '../components/cart/CartSummary';
+import React from 'react';
+import { useCart } from '../context/CartContext';
 import { Link } from 'react-router-dom';
 
 const Cart = () => {
-  const { trackPageView, trackEvent, getMockDashboardData } = useAnalytics();
-  const [cartItems, setCartItems] = useState([]);
-
-  // Mock cart data for development
-  const mockProducts = [
-    {
-      id: 1,
-      productId: 'prod-001',
-      name: 'Pure Coconut Oil',
-      image: '/images/oil-bottle.png',
-      price: 25.99,
-      quantity: 2,
-      volume: '500ml'
-    },
-    {
-      id: 2,
-      productId: 'prod-002',
-      name: 'Virgin Coconut Oil',
-      image: '/images/oil-bottle.png',
-      price: 32.99,
-      quantity: 1,
-      volume: '500ml'
-    }
-  ];
-
-  useEffect(() => {
-    // Track page view
-    trackPageView('/cart');
-    
-    // Load cart items (mock for now)
-    setCartItems(mockProducts);
-    
-    // Track cart view with item count
-    trackEvent('view_cart', 'ecommerce', '', mockProducts.length);
-    
-    // Track cart value
-    const cartValue = mockProducts.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    trackEvent('cart_value', 'ecommerce', 'cart_view', cartValue);
-  }, []);
-
-  const handleUpdateQuantity = (itemId, newQuantity) => {
-    setCartItems(prev => prev.map(item => 
-      item.id === itemId ? { ...item, quantity: newQuantity } : item
-    ));
-  };
-
-  const handleRemoveItem = (itemId) => {
-    const item = cartItems.find(i => i.id === itemId);
-    if (item) {
-      trackEvent('cart_item_removed', 'ecommerce', item.name, item.price);
-    }
-    
-    setCartItems(prev => prev.filter(item => item.id !== itemId));
-  };
-
-  const handleCheckout = () => {
-    trackEvent('checkout_initiated', 'ecommerce', '', cartItems.length);
-    // Navigate to checkout
-    window.location.href = '/checkout';
-  };
-
-  const subtotal = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-  const deliveryFee = subtotal > 50 ? 0 : 10;
-  const total = subtotal + deliveryFee;
+  const { cartItems, cartTotal, itemCount, removeFromCart, updateQuantity } = useCart();
 
   if (cartItems.length === 0) {
     return (
-      <div className="cart-page max-w-6xl mx-auto p-4 text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">Your Cart</h1>
-        <div className="bg-white rounded-lg shadow p-8">
-          <div className="text-5xl mb-4">🛒</div>
-          <h2 className="text-xl font-semibold text-gray-700 mb-2">Your cart is empty</h2>
-          <p className="text-gray-600 mb-6">Looks like you haven't added any products to your cart yet.</p>
-          <Link
-            to="/products"
-            onClick={() => trackEvent('empty_cart_click', 'navigation', 'browse_products')}
-            className="inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold"
-          >
-            Browse Products
-          </Link>
-        </div>
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">🛒</div>
+        <h1 className="text-3xl font-bold text-gray-800 mb-4">Your cart is empty</h1>
+        <p className="text-gray-600 mb-8">Add some products to get started!</p>
+        <Link
+          to="/products"
+          className="inline-block bg-green-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-green-700"
+        >
+          Browse Products
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="cart-page max-w-6xl mx-auto p-4">
-      <h1 className="text-3xl font-bold text-gray-800 mb-6">Your Cart</h1>
+    <div>
+      <h1 className="text-3xl font-bold text-gray-800 mb-8">Shopping Cart ({itemCount} items)</h1>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Cart Items */}
         <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="p-4 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-gray-800">
-                  Items ({cartItems.length})
-                </h2>
-                <button
-                  onClick={() => {
-                    trackEvent('clear_cart', 'ecommerce', 'clear_all');
-                    setCartItems([]);
-                  }}
-                  className="text-sm text-red-600 hover:text-red-800"
-                >
-                  Clear All
-                </button>
-              </div>
-            </div>
-            
-            <div className="divide-y divide-gray-100">
-              {cartItems.map(item => (
-                <CartItem
-                  key={item.id}
-                  item={item}
-                  onUpdateQuantity={handleUpdateQuantity}
-                  onRemove={handleRemoveItem}
+          <div className="bg-white rounded-lg shadow">
+            {cartItems.map((item) => (
+              <div key={item.id} className="flex items-center p-4 border-b">
+                <img
+                  src={item.image}
+                  alt={item.name}
+                  className="w-20 h-20 object-cover rounded"
                 />
-              ))}
-            </div>
+                <div className="ml-4 flex-grow">
+                  <h3 className="font-medium text-lg">{item.name}</h3>
+                  <p className="text-green-700 font-bold text-xl">₵{item.price}</p>
+                  <div className="flex items-center mt-2">
+                    <button
+                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      className="w-8 h-8 flex items-center justify-center border rounded"
+                    >
+                      -
+                    </button>
+                    <span className="w-12 text-center mx-2">{item.quantity}</span>
+                    <button
+                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      className="w-8 h-8 flex items-center justify-center border rounded"
+                    >
+                      +
+                    </button>
+                    <button
+                      onClick={() => removeFromCart(item.id, item.name, item.price)}
+                      className="ml-4 text-red-600 hover:text-red-800"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-xl font-bold">₵{(item.price * item.quantity).toFixed(2)}</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Cart Summary */}
-        <div>
-          <CartSummary
-            items={cartItems}
-            subtotal={subtotal}
-            deliveryFee={deliveryFee}
-            total={total}
-            onCheckout={handleCheckout}
-          />
-        </div>
-      </div>
-
-      {/* Recently Viewed (Mock) */}
-      <div className="mt-8">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">You might also like</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="bg-white p-4 rounded-lg shadow text-center">
-              <div className="text-3xl mb-2">🥥</div>
-              <div className="font-medium text-gray-800">Coconut Oil {i}</div>
-              <div className="text-green-700 font-semibold">₵{19.99 + i}</div>
+        {/* Order Summary */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-xl font-bold mb-6">Order Summary</h2>
+            
+            <div className="space-y-3 mb-6">
+              <div className="flex justify-between">
+                <span>Subtotal</span>
+                <span>₵{cartTotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Shipping</span>
+                <span className="text-green-600">Free</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Tax</span>
+                <span>₵{(cartTotal * 0.03).toFixed(2)}</span>
+              </div>
+              <div className="border-t pt-3">
+                <div className="flex justify-between font-bold text-xl">
+                  <span>Total</span>
+                  <span>₵{(cartTotal * 1.03).toFixed(2)}</span>
+                </div>
+              </div>
             </div>
-          ))}
+
+            <button
+              onClick={() => window.location.href = '/checkout'}
+              className="w-full bg-green-600 text-white py-3 rounded-lg font-medium hover:bg-green-700 mb-4"
+            >
+              Proceed to Checkout
+            </button>
+            
+            <Link
+              to="/products"
+              className="block text-center text-green-600 hover:text-green-800"
+            >
+              Continue Shopping
+            </Link>
+          </div>
         </div>
       </div>
     </div>

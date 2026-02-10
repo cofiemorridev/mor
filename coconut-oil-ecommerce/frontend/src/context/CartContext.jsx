@@ -1,134 +1,138 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { useAnalytics } from './AnalyticsContext';
 
 const CartContext = createContext();
 
 export const useCart = () => {
   const context = useContext(CartContext);
   if (!context) {
-    throw new Error('useCart must be used within a CartProvider');
+    throw new Error('useCart must be used within CartProvider');
   }
   return context;
 };
 
 export const CartProvider = ({ children }) => {
-  const [cart, setCart] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { trackAddToCart, trackEvent } = useAnalytics();
+  const [cartItems, setCartItems] = useState([]);
+  const [isCartOpen, setIsCartOpen] = useState(false);
 
-  // Load cart from localStorage on initial render
+  // Load cart from localStorage on mount
   useEffect(() => {
     const savedCart = localStorage.getItem('coconutOilCart');
     if (savedCart) {
       try {
-        const parsedCart = JSON.parse(savedCart);
-        setCart(parsedCart);
+        setCartItems(JSON.parse(savedCart));
       } catch (error) {
-        console.error('Error parsing cart from localStorage:', error);
-        localStorage.removeItem('coconutOilCart');
+        console.error('Error loading cart from localStorage:', error);
       }
     }
-    setIsLoading(false);
   }, []);
 
   // Save cart to localStorage whenever it changes
   useEffect(() => {
-    if (!isLoading) {
-      localStorage.setItem('coconutOilCart', JSON.stringify(cart));
-    }
-  }, [cart, isLoading]);
+    localStorage.setItem('coconutOilCart', JSON.stringify(cartItems));
+  }, [cartItems]);
 
   // Calculate cart totals
-  const calculateTotals = useCallback((items) => {
-    const subtotal = items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-    const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
-    
-    return {
-      subtotal,
-      totalItems
-    };
-  }, []);
-
-  const cartTotals = calculateTotals(cart);
+  const cartTotal = cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+  const itemCount = cartItems.reduce((count, item) => count + item.quantity, 0);
 
   // Add item to cart
-  const addToCart = useCallback((product, quantity = 1) => {
-    setCart(prevCart => {
-      const existingItemIndex = prevCart.findIndex(item => item.id === product.id);
+  const addToCart = (product, quantity = 1) => {
+    setCartItems(prevItems => {
+      const existingItem = prevItems.find(item => item.id === product.id);
       
-      if (existingItemIndex > -1) {
+      if (existingItem) {
         // Update quantity if item already exists
-        const updatedCart = [...prevCart];
-        updatedCart[existingItemIndex] = {
-          ...updatedCart[existingItemIndex],
-          quantity: updatedCart[existingItemIndex].quantity + quantity
-        };
-        return updatedCart;
+        return prevItems.map(item =>
+          item.id === product.id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
       } else {
-        // Add new item
-        const newItem = {
+        // Add new item to cart
+        return [...prevItems, {
           id: product.id,
           name: product.name,
           price: product.price,
           image: product.image || '/images/oil-bottle.png',
-          volume: product.volume,
-          category: product.category,
-          quantity
-        };
-        return [...prevCart, newItem];
+          quantity: quantity,
+          category: product.category
+        }];
       }
     });
-  }, []);
+
+    // Track analytics event
+    trackAddToCart(product.id, product.name, quantity, product.price);
+    
+    // Open cart when item is added
+    setIsCartOpen(true);
+  };
 
   // Remove item from cart
-  const removeFromCart = useCallback((productId) => {
-    setCart(prevCart => prevCart.filter(item => item.id !== productId));
-  }, []);
+  const removeFromCart = (productId, productName, price) => {
+    setCartItems(prevItems => prevItems.filter(item => item.id !== productId));
+    
+    // Track analytics event
+    trackEvent({
+      action: 'remove_from_cart',
+      category: 'ecommerce',
+      label: productName,
+      value: price
+    });
+  };
 
   // Update item quantity
-  const updateQuantity = useCallback((productId, quantity) => {
+  const updateQuantity = (productId, quantity) => {
     if (quantity < 1) {
-      removeFromCart(productId);
+      const item = cartItems.find(i => i.id === productId);
+      if (item) {
+        removeFromCart(productId, item.name, item.price);
+      }
       return;
     }
 
-    setCart(prevCart => 
-      prevCart.map(item => 
+    setCartItems(prevItems =>
+      prevItems.map(item =>
         item.id === productId ? { ...item, quantity } : item
       )
     );
-  }, [removeFromCart]);
+  };
 
-  // Clear cart
-  const clearCart = useCallback(() => {
-    setCart([]);
-    localStorage.removeItem('coconutOilCart');
-  }, []);
+  // Clear entire cart
+  const clearCart = () => {
+    trackEvent({
+      action: 'clear_cart',
+      category: 'ecommerce',
+      label: 'User cleared cart'
+    });
+    setCartItems([]);
+  };
 
-  // Check if item is in cart
-  const isInCart = useCallback((productId) => {
-    return cart.some(item => item.id === productId);
-  }, [cart]);
-
-  // Get item quantity
-  const getItemQuantity = useCallback((productId) => {
-    const item = cart.find(item => item.id === productId);
-    return item ? item.quantity : 0;
-  }, [cart]);
+  // Checkout function
+  const checkout = () => {
+    trackEvent({
+      action: 'begin_checkout',
+      category: 'ecommerce',
+      label: `Cart with ${itemCount} items`,
+      value: cartTotal
+    });
+    
+    // Navigate to checkout page
+    window.location.href = '/checkout';
+  };
 
   const value = {
-    cart,
-    isLoading,
+    cartItems,
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
-    isInCart,
-    getItemQuantity,
-    subtotal: cartTotals.subtotal,
-    totalItems: cartTotals.totalItems,
-    deliveryFee: 15.00, // Default delivery fee
-    get total() {
-      return this.subtotal + this.deliveryFee;
-    }
+    checkout,
+    cartTotal,
+    itemCount,
+    isCartOpen,
+    setIsCartOpen,
   };
 
   return (
@@ -137,3 +141,5 @@ export const CartProvider = ({ children }) => {
     </CartContext.Provider>
   );
 };
+
+export default CartContext;

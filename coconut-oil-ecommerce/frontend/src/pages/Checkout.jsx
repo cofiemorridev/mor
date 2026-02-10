@@ -1,333 +1,197 @@
-import React, { useState, useEffect } from 'react';
-import { useAnalytics } from '../hooks/useAnalytics';
+import React, { useState } from 'react';
+import { useCart } from '../context/CartContext';
+import { useCheckoutAnalytics } from '../hooks/useAnalytics';
 
 const Checkout = () => {
-  const { trackPageView, trackEvent, trackCheckoutStep, trackPurchase } = useAnalytics();
+  const { cartTotal, itemCount, clearCart } = useCart();
+  const { handleCheckoutStep, handlePurchase } = useCheckoutAnalytics();
   const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: '',
     address: '',
     city: '',
-    region: '',
-    paymentMethod: 'mobile_money'
+    postalCode: '',
+    paymentMethod: 'card'
   });
 
-  useEffect(() => {
-    trackPageView('/checkout');
-    trackCheckoutStep('checkout_started', 1);
-  }, []);
-
-  const handleInputChange = (field, value) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-    
-    // Track form field interaction
-    trackEvent('checkout_field_interaction', 'form', field, 1);
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleNextStep = () => {
-    const currentStep = step;
-    const nextStep = step + 1;
-    
-    // Validate current step
-    if (currentStep === 1) {
-      if (!formData.name || !formData.email || !formData.phone) {
-        trackEvent('checkout_validation_error', 'error', 'missing_contact_info');
-        alert('Please fill in all contact information');
-        return;
-      }
-    }
-    
-    if (currentStep === 2) {
-      if (!formData.address || !formData.city || !formData.region) {
-        trackEvent('checkout_validation_error', 'error', 'missing_shipping_info');
-        alert('Please fill in all shipping information');
-        return;
-      }
-    }
-    
-    // Track step completion
-    trackCheckoutStep(\`step_\${currentStep}_complete\`, currentStep);
-    trackCheckoutStep(\`step_\${nextStep}_started\`, nextStep);
-    
-    setStep(nextStep);
+    handleCheckoutStep(step, 'next');
+    setStep(prev => prev + 1);
   };
 
-  const handlePrevStep = () => {
-    const currentStep = step;
-    const prevStep = step - 1;
-    
-    trackCheckoutStep(\`step_\${currentStep}_back\`, currentStep);
-    setStep(prevStep);
+  const handlePreviousStep = () => {
+    handleCheckoutStep(step, 'back');
+    setStep(prev => prev - 1);
   };
 
-  const handlePlaceOrder = () => {
-    // Mock order data
-    const order = {
-      orderNumber: \`ORD-\${Date.now()}\`,
-      total: 75.50,
-      items: 3,
-      customer: formData.name,
-      paymentMethod: formData.paymentMethod
-    };
+  const handleSubmitOrder = () => {
+    const transactionId = 'TXN_' + Date.now();
+    handlePurchase(transactionId, cartTotal);
+    handleCheckoutStep(4, 'complete');
     
-    // Track purchase
-    trackPurchase(order);
-    trackCheckoutStep('order_placed', 4);
-    trackEvent('order_success', 'ecommerce', order.orderNumber, order.total);
-    
-    // Track payment method
-    trackEvent('payment_method_selected', 'ecommerce', formData.paymentMethod, 1);
-    
-    // Show success message
-    alert(\`Order placed successfully! Your order number is \${order.orderNumber}\`);
-    
-    // In a real app, this would redirect to payment gateway
-    window.location.href = '/payment/success';
+    // Clear cart and show success
+    clearCart();
+    alert('Order placed successfully! Thank you for your purchase.');
+    window.location.href = '/';
   };
 
-  const steps = [
-    { number: 1, title: 'Contact Info', icon: '📱' },
-    { number: 2, title: 'Shipping', icon: '📦' },
-    { number: 3, title: 'Payment', icon: '💳' },
-    { number: 4, title: 'Confirmation', icon: '✅' },
-  ];
-
-  return (
-    <div className="checkout-page max-w-4xl mx-auto p-4">
-      <h1 className="text-3xl font-bold text-gray-800 mb-8">Checkout</h1>
-      
-      {/* Progress Steps */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center">
-          {steps.map((stepItem) => (
-            <div key={stepItem.number} className="text-center flex-1">
-              <div className={\`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center text-xl
-                \${step >= stepItem.number ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}\`}>
-                {stepItem.icon}
-              </div>
-              <div className="text-sm font-medium">
-                Step {stepItem.number}
-              </div>
-              <div className="text-xs text-gray-500">{stepItem.title}</div>
-            </div>
-          ))}
-        </div>
-        <div className="mt-2 h-1 bg-gray-200 relative">
-          <div 
-            className="absolute top-0 left-0 h-full bg-green-600 transition-all duration-300"
-            style={{ width: \`\${((step - 1) / 3) * 100}%\` }}
-          ></div>
-        </div>
-      </div>
-
-      {/* Step Content */}
-      <div className="bg-white rounded-lg shadow-lg p-6">
-        {step === 1 && (
+  const renderStep = () => {
+    switch (step) {
+      case 1:
+        return (
           <div>
-            <h2 className="text-xl font-semibold mb-4">Contact Information</h2>
+            <h3 className="text-xl font-bold mb-4">Shipping Information</h3>
             <div className="space-y-4">
-              <div>
-                <label className="block text-gray-700 mb-2">Full Name *</label>
+              <input
+                type="text"
+                name="name"
+                placeholder="Full Name"
+                value={formData.name}
+                onChange={handleInputChange}
+                className="w-full p-3 border rounded-lg"
+              />
+              <input
+                type="email"
+                name="email"
+                placeholder="Email"
+                value={formData.email}
+                onChange={handleInputChange}
+                className="w-full p-3 border rounded-lg"
+              />
+              <input
+                type="text"
+                name="address"
+                placeholder="Address"
+                value={formData.address}
+                onChange={handleInputChange}
+                className="w-full p-3 border rounded-lg"
+              />
+              <div className="grid grid-cols-2 gap-4">
                 <input
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                  required
+                  name="city"
+                  placeholder="City"
+                  value={formData.city}
+                  onChange={handleInputChange}
+                  className="p-3 border rounded-lg"
                 />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-700 mb-2">Email *</label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange('email', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 mb-2">Phone Number *</label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => handleInputChange('phone', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  name="postalCode"
+                  placeholder="Postal Code"
+                  value={formData.postalCode}
+                  onChange={handleInputChange}
+                  className="p-3 border rounded-lg"
+                />
               </div>
             </div>
           </div>
-        )}
-
-        {step === 2 && (
+        );
+      case 2:
+        return (
           <div>
-            <h2 className="text-xl font-semibold mb-4">Shipping Address</h2>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-gray-700 mb-2">Address *</label>
-                <input
-                  type="text"
-                  value={formData.address}
-                  onChange={(e) => handleInputChange('address', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-gray-700 mb-2">City *</label>
-                  <input
-                    type="text"
-                    value={formData.city}
-                    onChange={(e) => handleInputChange('city', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-gray-700 mb-2">Region *</label>
-                  <select
-                    value={formData.region}
-                    onChange={(e) => handleInputChange('region', e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
-                    required
-                  >
-                    <option value="">Select Region</option>
-                    <option value="Greater Accra">Greater Accra</option>
-                    <option value="Ashanti">Ashanti</option>
-                    <option value="Western">Western</option>
-                    <option value="Eastern">Eastern</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div>
-            <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
+            <h3 className="text-xl font-bold mb-4">Payment Method</h3>
             <div className="space-y-3">
-              {[
-                { id: 'mobile_money', label: 'Mobile Money', icon: '📱', description: 'Pay with MTN, Vodafone, or AirtelTigo' },
-                { id: 'card', label: 'Credit/Debit Card', icon: '💳', description: 'Visa, Mastercard, or other cards' },
-                { id: 'bank_transfer', label: 'Bank Transfer', icon: '🏦', description: 'Direct bank transfer' },
-              ].map((method) => (
-                <label
-                  key={method.id}
-                  className={\`flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50 \${formData.paymentMethod === method.id ? 'border-green-500 bg-green-50' : 'border-gray-300'}\`}
-                >
+              {['card', 'mobile_money', 'cash_on_delivery'].map((method) => (
+                <label key={method} className="flex items-center p-3 border rounded-lg cursor-pointer">
                   <input
                     type="radio"
                     name="paymentMethod"
-                    value={method.id}
-                    checked={formData.paymentMethod === method.id}
-                    onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
+                    value={method}
+                    checked={formData.paymentMethod === method}
+                    onChange={handleInputChange}
                     className="mr-3"
                   />
-                  <div className="flex items-center">
-                    <span className="text-2xl mr-3">{method.icon}</span>
-                    <div>
-                      <div className="font-semibold">{method.label}</div>
-                      <div className="text-sm text-gray-600">{method.description}</div>
-                    </div>
-                  </div>
+                  <span className="capitalize">{method.replace('_', ' ')}</span>
                 </label>
               ))}
             </div>
           </div>
-        )}
-
-        {step === 4 && (
+        );
+      case 3:
+        return (
           <div>
-            <h2 className="text-xl font-semibold mb-4">Order Confirmation</h2>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-              <div className="flex items-center">
-                <div className="text-2xl mr-3">✅</div>
-                <div>
-                  <div className="font-semibold text-green-800">Ready to complete your order!</div>
-                  <div className="text-green-700">Review your information below</div>
-                </div>
-              </div>
+            <h3 className="text-xl font-bold mb-4">Order Review</h3>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <h4 className="font-bold mb-2">Order Summary</h4>
+              <p>Items: {itemCount}</p>
+              <p>Total: ₵{cartTotal.toFixed(2)}</p>
+              <p className="mt-2">Shipping to: {formData.address}, {formData.city}</p>
+              <p>Payment: {formData.paymentMethod.replace('_', ' ')}</p>
             </div>
-            
-            <div className="bg-gray-50 rounded-lg p-4 mb-6">
-              <h3 className="font-semibold mb-2">Order Summary</h3>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Items (3)</span>
-                  <span>₵65.50</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Delivery</span>
-                  <span>₵10.00</span>
-                </div>
-                <div className="border-t pt-2 mt-2">
-                  <div className="flex justify-between font-bold">
-                    <span>Total</span>
-                    <span className="text-green-700">₵75.50</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-            
-            <div className="text-center">
-              <button
-                onClick={handlePlaceOrder}
-                className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold text-lg"
-              >
-                Place Order & Pay
-              </button>
+            <div className="flex items-center">
+              <input type="checkbox" id="terms" className="mr-2" required />
+              <label htmlFor="terms">I agree to the terms and conditions</label>
             </div>
           </div>
-        )}
+        );
+      default:
+        return null;
+    }
+  };
 
-        {/* Navigation Buttons */}
-        <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
-          {step > 1 && (
-            <button
-              onClick={handlePrevStep}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
-            >
-              ← Back
-            </button>
-          )}
-          
-          {step < 4 ? (
-            <button
-              onClick={handleNextStep}
-              className="ml-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded"
-            >
-              Continue →
-            </button>
-          ) : (
-            <div className="ml-auto"></div>
-          )}
-        </div>
+  return (
+    <div className="max-w-4xl mx-auto">
+      <h1 className="text-3xl font-bold text-gray-800 mb-8">Checkout</h1>
+      
+      {/* Progress Steps */}
+      <div className="flex justify-between mb-8">
+        {[1, 2, 3].map((stepNum) => (
+          <div key={stepNum} className="flex items-center">
+            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+              step >= stepNum ? 'bg-green-600 text-white' : 'bg-gray-200'
+            }`}>
+              {stepNum}
+            </div>
+            <div className="ml-2">
+              <div className="text-sm font-medium">
+                {stepNum === 1 && 'Shipping'}
+                {stepNum === 2 && 'Payment'}
+                {stepNum === 3 && 'Review'}
+              </div>
+            </div>
+            {stepNum < 3 && <div className="w-16 h-1 bg-gray-200 mx-2"></div>}
+          </div>
+        ))}
       </div>
 
-      {/* Security Badges */}
-      <div className="mt-8 flex justify-center gap-6 text-center">
-        <div>
-          <div className="text-2xl mb-1">🔒</div>
-          <div className="text-xs text-gray-600">256-bit SSL Secure</div>
-        </div>
-        <div>
-          <div className="text-2xl mb-1">🛡️</div>
-          <div className="text-xs text-gray-600">Payment Protected</div>
-        </div>
-        <div>
-          <div className="text-2xl mb-1">🏷️</div>
-          <div className="text-xs text-gray-600">Best Price Guarantee</div>
-        </div>
+      {/* Step Content */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        {renderStep()}
+      </div>
+
+      {/* Navigation */}
+      <div className="flex justify-between">
+        {step > 1 && (
+          <button
+            onClick={handlePreviousStep}
+            className="px-6 py-3 border rounded-lg hover:bg-gray-50"
+          >
+            Back
+          </button>
+        )}
+        
+        {step < 3 ? (
+          <button
+            onClick={handleNextStep}
+            className="ml-auto px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            Continue
+          </button>
+        ) : (
+          <button
+            onClick={handleSubmitOrder}
+            className="ml-auto px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700"
+          >
+            Place Order
+          </button>
+        )}
       </div>
     </div>
   );

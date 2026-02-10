@@ -1,60 +1,43 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { AnalyticsProvider, DevAnalyticsPanel } from './context/AnalyticsContext';
-import './App.css';
-
-// Import pages
-import Home from './pages/Home';
-import Products from './pages/Products';
-import ProductDetail from './components/product/ProductDetail';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import NotFound from './pages/NotFound';
-
-// Import common components
-import Navbar from './components/common/Navbar';
-import Footer from './components/common/Footer';
+import React from 'react'
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { AppProvider } from './context/AppContext'
+import Navbar from './components/layout/Navbar'
+import Footer from './components/layout/Footer'
+import CartSidebar from './components/cart/CartSidebar'
+import Home from './pages/Home'
+import Products from './pages/Products'
+import ProductDetail from './pages/ProductDetail'
+import Cart from './pages/Cart'
+import Checkout from './pages/Checkout'
+import Login from './pages/Login'
+import Signup from './pages/Signup'
+import Profile from './pages/Profile'
+import './App.css'
 
 function App() {
-  // Mock product for testing ProductDetail
-  const mockProduct = {
-    id: 1,
-    name: 'Pure Coconut Oil',
-    description: '100% natural cold-pressed coconut oil from Ghana. Perfect for cooking, skin care, and hair treatment.',
-    shortDescription: '100% natural cold-pressed coconut oil',
-    price: 25.99,
-    comparePrice: 29.99,
-    volume: '500ml',
-    images: ['/images/oil-bottle.png'],
-    benefits: ['Rich in antioxidants', 'Natural moisturizer', 'Supports heart health'],
-    ingredients: ['100% Pure Coconut Oil'],
-    usage: 'Use for cooking, skin moisturizing, or hair treatment.',
-    rating: 4.5,
-    reviewCount: 128,
-    stockQuantity: 15
-  };
-
   return (
-    <AnalyticsProvider>
-      <Router>
-        <div className="min-h-screen flex flex-col bg-gray-50">
+    <Router>
+      <AppProvider>
+        <div className="min-h-screen bg-gray-50 flex flex-col">
           <Navbar />
-          <main className="flex-grow">
+          <main className="flex-grow container mx-auto px-4 py-8">
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/products" element={<Products />} />
-              <Route path="/products/:id" element={<ProductDetail product={mockProduct} />} />
+              <Route path="/products/:id" element={<ProductDetail />} />
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
-              <Route path="*" element={<NotFound />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
+              <Route path="/profile" element={<Profile />} />
             </Routes>
           </main>
           <Footer />
+          <CartSidebar />
         </div>
-      </Router>
-      {import.meta.env.DEV && <DevAnalyticsPanel />}
-    </AnalyticsProvider>
-  );
+      </AppProvider>
+    </Router>
+  )
 }
 
-export default App;
+export default App
