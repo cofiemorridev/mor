@@ -1,681 +1,336 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ShoppingBag, ArrowLeft, Shield, Truck, CreditCard, Smartphone, Building } from 'lucide-react';
-import { useCart } from '../context/CartContext';
-import { createOrder } from '../api/order.api';
-import { initializePayment, getPaymentChannels } from '../api/payment.api';
-import Loader from '../components/common/Loader';
-import Toast from '../components/common/Toast';
-import PaystackButton, { PaymentStatus } from '../components/checkout/PaystackButton';
+import React, { useState, useEffect } from 'react';
+import { useAnalytics } from '../hooks/useAnalytics';
 
-export default function Checkout() {
-  const { 
-    cart, 
-    isLoading: cartLoading, 
-    clearCart,
-    subtotal,
-    deliveryFee,
-    total
-  } = useCart();
-  
-  const navigate = useNavigate();
+const Checkout = () => {
+  const { trackPageView, trackEvent, trackCheckoutStep, trackPurchase } = useAnalytics();
+  const [step, setStep] = useState(1);
   const [formData, setFormData] = useState({
-    customerInfo: {
-      name: '',
-      email: '',
-      phone: '',
-      whatsappNumber: ''
-    },
-    shippingAddress: {
-      street: '',
-      city: '',
-      region: 'Greater Accra',
-      zipCode: ''
-    },
-    paymentMethod: 'mobile_money',
-    notes: ''
+    name: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    region: '',
+    paymentMethod: 'mobile_money'
   });
-  
-  const [loading, setLoading] = useState(false);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [toast, setToast] = useState(null);
-  const [paymentChannels, setPaymentChannels] = useState([]);
-  const [paymentInitialized, setPaymentInitialized] = useState(false);
-  const [paymentData, setPaymentData] = useState(null);
-  const [orderCreated, setOrderCreated] = useState(false);
-  const [orderDetails, setOrderDetails] = useState(null);
 
   useEffect(() => {
-    if (!cartLoading && cart.length === 0) {
-      navigate('/cart');
-    }
-    fetchPaymentChannels();
-  }, [cart, cartLoading, navigate]);
+    trackPageView('/checkout');
+    trackCheckoutStep('checkout_started', 1);
+  }, []);
 
-  const fetchPaymentChannels = async () => {
-    try {
-      const response = await getPaymentChannels();
-      if (response.success) {
-        setPaymentChannels(response.data);
+  const handleInputChange = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+    
+    // Track form field interaction
+    trackEvent('checkout_field_interaction', 'form', field, 1);
+  };
+
+  const handleNextStep = () => {
+    const currentStep = step;
+    const nextStep = step + 1;
+    
+    // Validate current step
+    if (currentStep === 1) {
+      if (!formData.name || !formData.email || !formData.phone) {
+        trackEvent('checkout_validation_error', 'error', 'missing_contact_info');
+        alert('Please fill in all contact information');
+        return;
       }
-    } catch (error) {
-      console.error('Error fetching payment channels:', error);
-    }
-  };
-
-  const showToast = (message, type = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    
-    if (name.includes('.')) {
-      const [section, field] = name.split('.');
-      setFormData(prev => ({
-        ...prev,
-        [section]: {
-          ...prev[section],
-          [field]: value
-        }
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        [name]: value
-      }));
-    }
-  };
-
-  const validateForm = () => {
-    const newErrors = {};
-
-    // Customer Info validation
-    if (!formData.customerInfo.name.trim()) {
-      newErrors['customerInfo.name'] = 'Name is required';
     }
     
-    if (!formData.customerInfo.email.trim()) {
-      newErrors['customerInfo.email'] = 'Email is required';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.customerInfo.email)) {
-      newErrors['customerInfo.email'] = 'Invalid email format';
-    }
-    
-    if (!formData.customerInfo.phone.trim()) {
-      newErrors['customerInfo.phone'] = 'Phone number is required';
-    } else if (!/^0[0-9]{9}$/.test(formData.customerInfo.phone)) {
-      newErrors['customerInfo.phone'] = 'Invalid Ghana phone number (e.g., 0241234567)';
-    }
-
-    // Shipping Address validation
-    if (!formData.shippingAddress.street.trim()) {
-      newErrors['shippingAddress.street'] = 'Street address is required';
-    }
-    
-    if (!formData.shippingAddress.city.trim()) {
-      newErrors['shippingAddress.city'] = 'City is required';
-    }
-
-    // WhatsApp number is optional, but if provided, validate
-    if (formData.customerInfo.whatsappNumber && !/^0[0-9]{9}$/.test(formData.customerInfo.whatsappNumber)) {
-      newErrors['customerInfo.whatsappNumber'] = 'Invalid Ghana phone number';
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleCreateOrder = async () => {
-    if (!validateForm()) {
-      showToast('Please fix the errors in the form', 'error');
-      return null;
-    }
-
-    setLoading(true);
-
-    try {
-      // Prepare order data
-      const orderData = {
-        customerInfo: formData.customerInfo,
-        shippingAddress: formData.shippingAddress,
-        items: cart.map(item => ({
-          product: item.id,
-          name: item.name,
-          price: item.price,
-          quantity: item.quantity,
-          image: item.image
-        })),
-        subtotal: subtotal,
-        deliveryFee: deliveryFee,
-        total: total,
-        paymentMethod: formData.paymentMethod,
-        notes: formData.notes
-      };
-
-      // Create order via API
-      const response = await createOrder(orderData);
-      
-      if (response.success) {
-        setOrderCreated(true);
-        setOrderDetails(response.data);
-        showToast('Order created successfully!', 'success');
-        return response.data;
-      } else {
-        showToast(response.message || 'Failed to create order', 'error');
-        return null;
+    if (currentStep === 2) {
+      if (!formData.address || !formData.city || !formData.region) {
+        trackEvent('checkout_validation_error', 'error', 'missing_shipping_info');
+        alert('Please fill in all shipping information');
+        return;
       }
-    } catch (error) {
-      console.error('Order creation error:', error);
-      showToast('An error occurred. Please try again.', 'error');
-      return null;
-    } finally {
-      setLoading(false);
     }
-  };
-
-  const handleInitializePayment = async () => {
-    if (!orderCreated || !orderDetails) {
-      const order = await handleCreateOrder();
-      if (!order) return;
-    }
-
-    setPaymentLoading(true);
-
-    try {
-      const paymentRequest = {
-        orderId: orderDetails._id,
-        orderNumber: orderDetails.orderNumber,
-        customerEmail: formData.customerInfo.email,
-        amount: total,
-        metadata: {
-          orderId: orderDetails._id,
-          orderNumber: orderDetails.orderNumber,
-          customerName: formData.customerInfo.name,
-          customerPhone: formData.customerInfo.phone,
-          items: cart.map(item => item.name).join(', ')
-        },
-        callbackUrl: `${window.location.origin}/payment/verify`
-      };
-
-      const response = await initializePayment(paymentRequest);
-      
-      if (response.success) {
-        setPaymentInitialized(true);
-        setPaymentData(response.data);
-        showToast('Payment initialized! Redirecting to Paystack...', 'success');
-        
-        // Redirect to Paystack
-        setTimeout(() => {
-          window.location.href = response.data.authorization_url;
-        }, 1500);
-      } else {
-        showToast(response.message || 'Failed to initialize payment', 'error');
-      }
-    } catch (error) {
-      console.error('Payment initialization error:', error);
-      showToast('An error occurred. Please try again.', 'error');
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
-  const handleDirectPayment = async () => {
-    if (!orderCreated || !orderDetails) {
-      const order = await handleCreateOrder();
-      if (!order) return;
-    }
-
-    // For demo purposes, simulate successful payment
-    setPaymentLoading(true);
     
-    setTimeout(() => {
-      clearCart();
-      navigate(`/payment/success?order=${orderDetails.orderNumber}`);
-    }, 2000);
+    // Track step completion
+    trackCheckoutStep(\`step_\${currentStep}_complete\`, currentStep);
+    trackCheckoutStep(\`step_\${nextStep}_started\`, nextStep);
+    
+    setStep(nextStep);
   };
 
-  const regions = [
-    'Greater Accra', 'Ashanti', 'Western', 'Central', 'Volta',
-    'Eastern', 'Northern', 'Upper East', 'Upper West', 'Brong-Ahafo'
+  const handlePrevStep = () => {
+    const currentStep = step;
+    const prevStep = step - 1;
+    
+    trackCheckoutStep(\`step_\${currentStep}_back\`, currentStep);
+    setStep(prevStep);
+  };
+
+  const handlePlaceOrder = () => {
+    // Mock order data
+    const order = {
+      orderNumber: \`ORD-\${Date.now()}\`,
+      total: 75.50,
+      items: 3,
+      customer: formData.name,
+      paymentMethod: formData.paymentMethod
+    };
+    
+    // Track purchase
+    trackPurchase(order);
+    trackCheckoutStep('order_placed', 4);
+    trackEvent('order_success', 'ecommerce', order.orderNumber, order.total);
+    
+    // Track payment method
+    trackEvent('payment_method_selected', 'ecommerce', formData.paymentMethod, 1);
+    
+    // Show success message
+    alert(\`Order placed successfully! Your order number is \${order.orderNumber}\`);
+    
+    // In a real app, this would redirect to payment gateway
+    window.location.href = '/payment/success';
+  };
+
+  const steps = [
+    { number: 1, title: 'Contact Info', icon: '📱' },
+    { number: 2, title: 'Shipping', icon: '📦' },
+    { number: 3, title: 'Payment', icon: '💳' },
+    { number: 4, title: 'Confirmation', icon: '✅' },
   ];
-
-  const paymentMethods = [
-    { 
-      id: 'mobile_money', 
-      label: 'Mobile Money', 
-      icon: <Smartphone className="w-5 h-5" />,
-      description: 'Pay with MTN, Vodafone, or AirtelTigo Mobile Money'
-    },
-    { 
-      id: 'card', 
-      label: 'Credit/Debit Card', 
-      icon: <CreditCard className="w-5 h-5" />,
-      description: 'Pay with Visa, Mastercard, or Verve cards'
-    },
-    { 
-      id: 'bank_transfer', 
-      label: 'Bank Transfer', 
-      icon: <Building className="w-5 h-5" />,
-      description: 'Transfer directly from your bank account'
-    }
-  ];
-
-  if (cartLoading || loading) {
-    return (
-      <div className="container mx-auto px-4 py-12">
-        <Loader />
-      </div>
-    );
-  }
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <button
-        onClick={() => navigate('/cart')}
-        className="btn-outline mb-6 flex items-center gap-2"
-      >
-        <ArrowLeft className="w-4 h-4" />
-        Back to Cart
-      </button>
+    <div className="checkout-page max-w-4xl mx-auto p-4">
+      <h1 className="text-3xl font-bold text-gray-800 mb-8">Checkout</h1>
+      
+      {/* Progress Steps */}
+      <div className="mb-8">
+        <div className="flex justify-between items-center">
+          {steps.map((stepItem) => (
+            <div key={stepItem.number} className="text-center flex-1">
+              <div className={\`w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center text-xl
+                \${step >= stepItem.number ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-500'}\`}>
+                {stepItem.icon}
+              </div>
+              <div className="text-sm font-medium">
+                Step {stepItem.number}
+              </div>
+              <div className="text-xs text-gray-500">{stepItem.title}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-2 h-1 bg-gray-200 relative">
+          <div 
+            className="absolute top-0 left-0 h-full bg-green-600 transition-all duration-300"
+            style={{ width: \`\${((step - 1) / 3) * 100}%\` }}
+          ></div>
+        </div>
+      </div>
 
-      <h1 className="text-3xl font-bold text-primary-800 mb-2">Checkout</h1>
-      <p className="text-gray-600 mb-8">Complete your purchase in a few simple steps</p>
+      {/* Step Content */}
+      <div className="bg-white rounded-lg shadow-lg p-6">
+        {step === 1 && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Contact Information</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-700 mb-2">Full Name *</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 mb-2">Email *</label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => handleInputChange('email', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-2">Phone Number *</label>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => handleInputChange('phone', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-      {paymentInitialized && paymentData ? (
-        // Payment Initialized View
-        <div className="max-w-2xl mx-auto">
-          <PaymentStatus 
-            status="success"
-            message="Payment initialized successfully! Redirecting to Paystack..."
-            reference={paymentData.reference}
-          />
-          
-          <div className="card mt-6">
-            <h3 className="font-semibold text-gray-800 mb-4">Payment Details</h3>
+        {step === 2 && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Shipping Address</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-gray-700 mb-2">Address *</label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange('address', e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                  required
+                />
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-gray-700 mb-2">City *</label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => handleInputChange('city', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-gray-700 mb-2">Region *</label>
+                  <select
+                    value={formData.region}
+                    onChange={(e) => handleInputChange('region', e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-green-500"
+                    required
+                  >
+                    <option value="">Select Region</option>
+                    <option value="Greater Accra">Greater Accra</option>
+                    <option value="Ashanti">Ashanti</option>
+                    <option value="Western">Western</option>
+                    <option value="Eastern">Eastern</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Payment Method</h2>
             <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Order Number</span>
-                <span className="font-medium">{orderDetails?.orderNumber}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Amount</span>
-                <span className="font-bold text-primary-800">₵{total.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Payment Method</span>
-                <span className="font-medium capitalize">{formData.paymentMethod.replace('_', ' ')}</span>
+              {[
+                { id: 'mobile_money', label: 'Mobile Money', icon: '📱', description: 'Pay with MTN, Vodafone, or AirtelTigo' },
+                { id: 'card', label: 'Credit/Debit Card', icon: '💳', description: 'Visa, Mastercard, or other cards' },
+                { id: 'bank_transfer', label: 'Bank Transfer', icon: '🏦', description: 'Direct bank transfer' },
+              ].map((method) => (
+                <label
+                  key={method.id}
+                  className={\`flex items-center p-4 border rounded-lg cursor-pointer hover:bg-gray-50 \${formData.paymentMethod === method.id ? 'border-green-500 bg-green-50' : 'border-gray-300'}\`}
+                >
+                  <input
+                    type="radio"
+                    name="paymentMethod"
+                    value={method.id}
+                    checked={formData.paymentMethod === method.id}
+                    onChange={(e) => handleInputChange('paymentMethod', e.target.value)}
+                    className="mr-3"
+                  />
+                  <div className="flex items-center">
+                    <span className="text-2xl mr-3">{method.icon}</span>
+                    <div>
+                      <div className="font-semibold">{method.label}</div>
+                      <div className="text-sm text-gray-600">{method.description}</div>
+                    </div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div>
+            <h2 className="text-xl font-semibold mb-4">Order Confirmation</h2>
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+              <div className="flex items-center">
+                <div className="text-2xl mr-3">✅</div>
+                <div>
+                  <div className="font-semibold text-green-800">Ready to complete your order!</div>
+                  <div className="text-green-700">Review your information below</div>
+                </div>
               </div>
             </div>
             
-            <div className="mt-6">
-              <p className="text-gray-600 text-sm mb-4">
-                If you are not redirected automatically, click the button below:
-              </p>
-              <a
-                href={paymentData.authorization_url}
-                className="btn-primary w-full py-3 text-lg font-semibold text-center"
-              >
-                Continue to Paystack Payment
-              </a>
-            </div>
-          </div>
-        </div>
-      ) : (
-        // Checkout Form View
-        <form onSubmit={(e) => e.preventDefault()} className="flex flex-col lg:flex-row gap-8">
-          {/* Left Column - Form */}
-          <div className="lg:w-2/3">
-            {/* Customer Information */}
-            <div className="card mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5" />
-                Customer Information
-              </h2>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="input-label">Full Name *</label>
-                  <input
-                    type="text"
-                    name="customerInfo.name"
-                    value={formData.customerInfo.name}
-                    onChange={handleChange}
-                    className={`input-field ${errors['customerInfo.name'] ? 'border-red-500' : ''}`}
-                    placeholder="John Doe"
-                  />
-                  {errors['customerInfo.name'] && (
-                    <p className="text-red-500 text-sm mt-1">{errors['customerInfo.name']}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="input-label">Email Address *</label>
-                  <input
-                    type="email"
-                    name="customerInfo.email"
-                    value={formData.customerInfo.email}
-                    onChange={handleChange}
-                    className={`input-field ${errors['customerInfo.email'] ? 'border-red-500' : ''}`}
-                    placeholder="john@example.com"
-                  />
-                  {errors['customerInfo.email'] && (
-                    <p className="text-red-500 text-sm mt-1">{errors['customerInfo.email']}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="input-label">Phone Number *</label>
-                  <input
-                    type="tel"
-                    name="customerInfo.phone"
-                    value={formData.customerInfo.phone}
-                    onChange={handleChange}
-                    className={`input-field ${errors['customerInfo.phone'] ? 'border-red-500' : ''}`}
-                    placeholder="0241234567"
-                  />
-                  {errors['customerInfo.phone'] && (
-                    <p className="text-red-500 text-sm mt-1">{errors['customerInfo.phone']}</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="input-label">WhatsApp Number (Optional)</label>
-                  <input
-                    type="tel"
-                    name="customerInfo.whatsappNumber"
-                    value={formData.customerInfo.whatsappNumber}
-                    onChange={handleChange}
-                    className={`input-field ${errors['customerInfo.whatsappNumber'] ? 'border-red-500' : ''}`}
-                    placeholder="0241234567"
-                  />
-                  {errors['customerInfo.whatsappNumber'] && (
-                    <p className="text-red-500 text-sm mt-1">{errors['customerInfo.whatsappNumber']}</p>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Shipping Address */}
-            <div className="card mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                <Truck className="w-5 h-5" />
-                Shipping Address
-              </h2>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="input-label">Street Address *</label>
-                  <input
-                    type="text"
-                    name="shippingAddress.street"
-                    value={formData.shippingAddress.street}
-                    onChange={handleChange}
-                    className={`input-field ${errors['shippingAddress.street'] ? 'border-red-500' : ''}`}
-                    placeholder="123 Main Street"
-                  />
-                  {errors['shippingAddress.street'] && (
-                    <p className="text-red-500 text-sm mt-1">{errors['shippingAddress.street']}</p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="input-label">City *</label>
-                    <input
-                      type="text"
-                      name="shippingAddress.city"
-                      value={formData.shippingAddress.city}
-                      onChange={handleChange}
-                      className={`input-field ${errors['shippingAddress.city'] ? 'border-red-500' : ''}`}
-                      placeholder="Accra"
-                    />
-                    {errors['shippingAddress.city'] && (
-                      <p className="text-red-500 text-sm mt-1">{errors['shippingAddress.city']}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="input-label">Region *</label>
-                    <select
-                      name="shippingAddress.region"
-                      value={formData.shippingAddress.region}
-                      onChange={handleChange}
-                      className="input-field"
-                    >
-                      {regions.map(region => (
-                        <option key={region} value={region}>
-                          {region}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="input-label">ZIP Code (Optional)</label>
-                    <input
-                      type="text"
-                      name="shippingAddress.zipCode"
-                      value={formData.shippingAddress.zipCode}
-                      onChange={handleChange}
-                      className="input-field"
-                      placeholder="GA123"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="input-label">Country</label>
-                    <input
-                      type="text"
-                      value="Ghana"
-                      className="input-field bg-gray-50"
-                      readOnly
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Payment Method */}
-            <div className="card mb-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6 flex items-center gap-2">
-                <CreditCard className="w-5 h-5" />
-                Payment Method
-              </h2>
-              
-              <div className="space-y-3">
-                {paymentMethods.map(method => (
-                  <label
-                    key={method.id}
-                    className={`flex items-start p-4 border rounded-lg cursor-pointer hover:bg-gray-50 ${
-                      formData.paymentMethod === method.id
-                        ? 'border-primary-500 bg-primary-50'
-                        : 'border-gray-200'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="paymentMethod"
-                      value={method.id}
-                      checked={formData.paymentMethod === method.id}
-                      onChange={handleChange}
-                      className="sr-only"
-                    />
-                    <div className="flex items-center gap-3 mr-3 mt-1">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        formData.paymentMethod === method.id
-                          ? 'bg-primary-100 text-primary-600'
-                          : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {method.icon}
-                      </div>
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-semibold text-gray-800">{method.label}</div>
-                      <div className="text-sm text-gray-600 mt-1">{method.description}</div>
-                    </div>
-                    {formData.paymentMethod === method.id && (
-                      <div className="ml-auto text-primary-600 font-medium">
-                        ✓ Selected
-                      </div>
-                    )}
-                  </label>
-                ))}
-              </div>
-
-              <div className="mt-6">
-                <label className="input-label">Order Notes (Optional)</label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleChange}
-                  className="input-field min-h-[100px]"
-                  placeholder="Any special instructions for your order..."
-                  rows="4"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Order Summary */}
-          <div className="lg:w-1/3">
-            <div className="card sticky top-6">
-              <h2 className="text-xl font-semibold text-gray-800 mb-6">Order Summary</h2>
-              
-              {/* Order Items */}
-              <div className="mb-6">
-                <h3 className="font-medium text-gray-700 mb-3">Items ({cart.length})</h3>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {cart.map(item => (
-                    <div key={item.id} className="flex items-center gap-3">
-                      <div className="w-12 h-12 flex-shrink-0">
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-full h-full object-cover rounded"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm text-gray-800 truncate">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {item.quantity} × ₵{item.price.toFixed(2)}
-                        </p>
-                      </div>
-                      <div className="font-semibold text-gray-800">
-                        ₵{(item.price * item.quantity).toFixed(2)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Order Totals */}
-              <div className="border-t pt-4 space-y-3">
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <h3 className="font-semibold mb-2">Order Summary</h3>
+              <div className="space-y-2">
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">₵{subtotal.toFixed(2)}</span>
+                  <span>Items (3)</span>
+                  <span>₵65.50</span>
                 </div>
-                
                 <div className="flex justify-between">
-                  <span className="text-gray-600">Delivery Fee</span>
-                  <span className="font-medium">₵{deliveryFee.toFixed(2)}</span>
+                  <span>Delivery</span>
+                  <span>₵10.00</span>
                 </div>
-                
-                <div className="border-t pt-3">
-                  <div className="flex justify-between text-lg font-bold">
+                <div className="border-t pt-2 mt-2">
+                  <div className="flex justify-between font-bold">
                     <span>Total</span>
-                    <span className="text-primary-800">₵{total.toFixed(2)}</span>
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Prices include all applicable taxes
-                  </p>
-                </div>
-              </div>
-
-              {/* Trust Badges */}
-              <div className="mt-6 pt-6 border-t">
-                <div className="flex items-center justify-center gap-6 text-gray-500">
-                  <div className="text-center">
-                    <Shield className="w-6 h-6 mx-auto mb-1" />
-                    <p className="text-xs">Secure Payment</p>
-                  </div>
-                  <div className="text-center">
-                    <Truck className="w-6 h-6 mx-auto mb-1" />
-                    <p className="text-xs">Fast Delivery</p>
+                    <span className="text-green-700">₵75.50</span>
                   </div>
                 </div>
               </div>
-
-              {/* Payment Buttons */}
-              <div className="mt-6 space-y-3">
-                {process.env.NODE_ENV === 'development' ? (
-                  // Demo payment button for development
-                  <button
-                    onClick={handleDirectPayment}
-                    disabled={paymentLoading}
-                    className="btn-primary w-full py-3 text-lg font-semibold flex items-center justify-center gap-2"
-                  >
-                    {paymentLoading ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Processing Demo Payment...
-                      </>
-                    ) : (
-                      <>
-                        Pay with Demo
-                        <span className="ml-auto">₵{total.toFixed(2)}</span>
-                      </>
-                    )}
-                  </button>
-                ) : (
-                  // Real Paystack payment button for production
-                  <button
-                    onClick={handleInitializePayment}
-                    disabled={paymentLoading}
-                    className="btn-primary w-full py-3 text-lg font-semibold flex items-center justify-center gap-2"
-                  >
-                    {paymentLoading ? (
-                      <>
-                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        Initializing Payment...
-                      </>
-                    ) : (
-                      <>
-                        Pay with {formData.paymentMethod === 'mobile_money' ? 'Mobile Money' : 
-                                 formData.paymentMethod === 'card' ? 'Card' : 'Bank Transfer'}
-                        <span className="ml-auto">₵{total.toFixed(2)}</span>
-                      </>
-                    )}
-                  </button>
-                )}
-
-                <p className="text-xs text-center text-gray-500">
-                  {formData.paymentMethod === 'mobile_money' && 'You will be redirected to your mobile money app'}
-                  {formData.paymentMethod === 'card' && 'Secure card payment powered by Paystack'}
-                  {formData.paymentMethod === 'bank_transfer' && 'You will receive bank transfer details'}
-                </p>
-              </div>
-
-              {/* Terms */}
-              <p className="text-xs text-gray-500 text-center mt-4">
-                By placing your order, you agree to our Terms & Conditions
-              </p>
+            </div>
+            
+            <div className="text-center">
+              <button
+                onClick={handlePlaceOrder}
+                className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-semibold text-lg"
+              >
+                Place Order & Pay
+              </button>
             </div>
           </div>
-        </form>
-      )}
+        )}
 
-      {/* Toast Notifications */}
-      {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
-      )}
+        {/* Navigation Buttons */}
+        <div className="flex justify-between mt-8 pt-6 border-t border-gray-200">
+          {step > 1 && (
+            <button
+              onClick={handlePrevStep}
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded hover:bg-gray-50"
+            >
+              ← Back
+            </button>
+          )}
+          
+          {step < 4 ? (
+            <button
+              onClick={handleNextStep}
+              className="ml-auto bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded"
+            >
+              Continue →
+            </button>
+          ) : (
+            <div className="ml-auto"></div>
+          )}
+        </div>
+      </div>
+
+      {/* Security Badges */}
+      <div className="mt-8 flex justify-center gap-6 text-center">
+        <div>
+          <div className="text-2xl mb-1">🔒</div>
+          <div className="text-xs text-gray-600">256-bit SSL Secure</div>
+        </div>
+        <div>
+          <div className="text-2xl mb-1">🛡️</div>
+          <div className="text-xs text-gray-600">Payment Protected</div>
+        </div>
+        <div>
+          <div className="text-2xl mb-1">🏷️</div>
+          <div className="text-xs text-gray-600">Best Price Guarantee</div>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default Checkout;

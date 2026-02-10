@@ -1,266 +1,208 @@
-import React from 'react';
-import SEO from '../components/common/SEO';
-import { getPageSEOConfig } from '../utils/seoUtils';
-import OptimizedImage from '../components/common/OptimizedImage';
+import React, { useEffect } from 'react';
+import { useAnalytics } from '../hooks/useAnalytics';
+import ProductCard from '../components/product/ProductCard';
 import { Link } from 'react-router-dom';
 
 const Home = () => {
-  const seoConfig = getPageSEOConfig('home');
+  const { trackPageView, trackEvent } = useAnalytics();
+
+  useEffect(() => {
+    trackPageView('/');
+    trackEvent('home_page_view', 'engagement', 'home', 1);
+  }, []);
+
+  const handleCTAClick = (ctaType) => {
+    trackEvent('home_cta_click', 'engagement', ctaType);
+  };
+
+  const handleFeatureClick = (featureName) => {
+    trackEvent('home_feature_click', 'engagement', featureName);
+  };
 
   const featuredProducts = [
     {
       id: 1,
       name: 'Pure Coconut Oil',
-      price: 25.00,
-      volume: '500ml',
+      shortDescription: '100% natural cold-pressed',
+      price: 25.99,
+      comparePrice: 29.99,
       image: '/images/oil-bottle.png',
-      rating: 4.8,
-      description: '100% pure, natural coconut oil'
+      featured: true
     },
     {
       id: 2,
       name: 'Virgin Coconut Oil',
-      price: 45.00,
-      volume: '1L',
+      shortDescription: 'Premium extra virgin quality',
+      price: 32.99,
+      comparePrice: 36.99,
       image: '/images/oil-bottle.png',
-      rating: 4.9,
-      description: 'Premium virgin coconut oil'
-    }
+      featured: true
+    },
+    {
+      id: 3,
+      name: 'Coconut Oil for Hair',
+      shortDescription: 'Special blend for hair care',
+      price: 22.99,
+      image: '/images/oil-bottle.png',
+      featured: true
+    },
   ];
 
   const features = [
-    {
-      icon: '🥥',
-      title: '100% Natural & Pure',
-      description: 'No additives or preservatives'
-    },
-    {
-      icon: '❄️',
-      title: 'Cold-Pressed',
-      description: 'Retains all natural nutrients'
-    },
-    {
-      icon: '💚',
-      title: 'Rich in Nutrients',
-      description: 'Packed with vitamins and antioxidants'
-    },
-    {
-      icon: '✨',
-      title: 'Multipurpose Use',
-      description: 'For cooking, skincare, and haircare'
-    }
+    { icon: '🌿', title: '100% Natural', description: 'No additives or chemicals' },
+    { icon: '❄️', title: 'Cold-Pressed', description: 'Preserves all nutrients' },
+    { icon: '💚', title: 'Rich in Nutrients', description: 'Packed with vitamins' },
+    { icon: '✨', title: 'Multi-Purpose', description: 'Cooking, beauty & health' },
   ];
 
   return (
-    <>
-      <SEO {...seoConfig} />
-      
+    <div className="home-page">
       {/* Hero Section */}
-      <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <OptimizedImage
-            src="/images/hero-coconut.jpg"
-            alt="Coconut plantation in Ghana"
-            className="w-full h-full object-cover"
-            loading="eager"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-transparent" />
-        </div>
-        
-        <div className="relative z-10 container mx-auto px-4 text-center text-white">
-          <div className="max-w-4xl mx-auto">
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 animate-fadeIn">
-              Pure, Natural Coconut Oil
+      <div className="relative bg-gradient-to-r from-green-700 to-green-900 text-white">
+        <div className="container mx-auto px-4 py-24">
+          <div className="max-w-3xl">
+            <h1 className="text-5xl md:text-6xl font-bold mb-6">
+              Pure, Natural Coconut Oil from Ghana
             </h1>
-            <p className="text-xl md:text-2xl lg:text-3xl mb-8 text-green-100">
-              Experience the authentic taste and benefits of 100% natural coconut oil from Ghana
+            <p className="text-xl mb-8 opacity-90">
+              Experience the authentic taste and benefits of 100% natural, 
+              cold-pressed coconut oil. Perfect for cooking, beauty, and wellness.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link 
+            <div className="flex flex-wrap gap-4">
+              <Link
                 to="/products"
-                className="bg-green-600 hover:bg-green-700 text-white px-8 py-4 rounded-lg text-lg font-semibold transition-all duration-300 transform hover:scale-105"
+                onClick={() => handleCTAClick('shop_now')}
+                className="bg-white text-green-700 hover:bg-green-50 px-8 py-3 rounded-lg font-semibold text-lg"
               >
                 Shop Now
               </Link>
-              <Link 
+              <Link
                 to="/about"
-                className="bg-white/10 hover:bg-white/20 backdrop-blur-sm text-white px-8 py-4 rounded-lg text-lg font-semibold border-2 border-white/30 transition-all duration-300"
+                onClick={() => handleCTAClick('learn_more')}
+                className="border-2 border-white text-white hover:bg-white/10 px-8 py-3 rounded-lg font-semibold text-lg"
               >
                 Learn More
               </Link>
             </div>
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Features Section */}
-      <section className="py-16 bg-gradient-to-b from-white to-green-50">
+      <div className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-12 text-green-800">
-            Why Choose Our Coconut Oil?
-          </h2>
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-800 mb-4">Why Choose Our Coconut Oil?</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Our commitment to quality ensures you get the best coconut oil experience.
+            </p>
+          </div>
+          
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {features.map((feature, index) => (
-              <div 
+              <div
                 key={index}
-                className="bg-white p-6 rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-green-100"
+                onClick={() => handleFeatureClick(feature.title)}
+                className="bg-white p-6 rounded-lg shadow text-center hover:shadow-lg transition-shadow cursor-pointer"
               >
                 <div className="text-4xl mb-4">{feature.icon}</div>
-                <h3 className="text-xl font-bold mb-2 text-green-700">{feature.title}</h3>
+                <h3 className="font-semibold text-xl mb-2">{feature.title}</h3>
                 <p className="text-gray-600">{feature.description}</p>
               </div>
             ))}
           </div>
         </div>
-      </section>
+      </div>
 
       {/* Featured Products */}
-      <section className="py-16 bg-white">
+      <div className="py-16">
         <div className="container mx-auto px-4">
-          <div className="flex justify-between items-center mb-12">
-            <h2 className="text-3xl md:text-4xl font-bold text-green-800">Our Best Sellers</h2>
-            <Link 
+          <div className="flex justify-between items-center mb-8">
+            <h2 className="text-3xl font-bold text-gray-800">Our Best Sellers</h2>
+            <Link
               to="/products"
-              className="text-green-600 hover:text-green-800 font-semibold flex items-center gap-2"
+              onClick={() => handleCTAClick('view_all_products')}
+              className="text-green-600 hover:text-green-700 font-semibold"
             >
-              View All Products
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
+              View All Products →
             </Link>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {featuredProducts.map((product) => (
-              <div 
-                key={product.id}
-                className="group bg-white border border-green-100 rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300"
-              >
-                <div className="relative overflow-hidden h-64">
-                  <OptimizedImage
-                    src={product.image}
-                    alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  />
-                  <div className="absolute top-4 right-4 bg-green-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-                    Featured
-                  </div>
-                </div>
-                <div className="p-6">
-                  <h3 className="text-xl font-bold mb-2 text-green-800">{product.name}</h3>
-                  <p className="text-gray-600 mb-4">{product.description}</p>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-2xl font-bold text-green-700">₵{product.price.toFixed(2)}</span>
-                      <span className="text-gray-500 ml-2">{product.volume}</span>
-                    </div>
-                    <div className="flex items-center">
-                      <div className="flex text-amber-400 mr-2">
-                        {'★'.repeat(5)}
-                      </div>
-                      <span className="text-gray-600">{product.rating}</span>
-                    </div>
-                  </div>
-                  <Link 
-                    to={`/products/${product.id}`}
-                    className="mt-6 block w-full bg-green-50 hover:bg-green-100 text-green-700 text-center py-3 rounded-lg font-semibold transition-colors duration-300"
-                  >
-                    View Details
-                  </Link>
-                </div>
-              </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {featuredProducts.map(product => (
+              <ProductCard key={product.id} product={product} />
             ))}
           </div>
         </div>
-      </section>
+      </div>
 
       {/* About Section */}
-      <section className="py-16 bg-gradient-to-b from-white to-amber-50">
+      <div className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6 text-green-800">
-                Our Story & Commitment
-              </h2>
-              <div className="space-y-4 text-gray-700">
-                <p>
-                  At Coconut Oil Ghana, we're passionate about bringing you the purest, most natural coconut oil 
-                  straight from the heart of Ghana's coconut plantations.
-                </p>
-                <p>
-                  Our journey began with a simple mission: to preserve traditional extraction methods while 
-                  maintaining the highest quality standards. Every bottle of our coconut oil is carefully 
-                  cold-pressed to retain all the natural nutrients and authentic flavor.
-                </p>
-                <p>
-                  We work directly with local farmers, ensuring fair trade practices and supporting sustainable 
-                  agriculture that benefits both our community and our customers.
-                </p>
-              </div>
-              <Link 
+              <h2 className="text-3xl font-bold text-gray-800 mb-6">Our Story</h2>
+              <p className="text-gray-700 mb-4">
+                We source our coconuts directly from sustainable farms in Ghana, 
+                ensuring the highest quality while supporting local communities.
+              </p>
+              <p className="text-gray-700 mb-6">
+                Our cold-pressing process preserves all the natural nutrients, 
+                giving you coconut oil that's perfect for cooking, skin care, 
+                hair treatment, and overall wellness.
+              </p>
+              <Link
                 to="/about"
-                className="inline-block mt-8 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition-colors duration-300"
+                onClick={() => handleCTAClick('about_us')}
+                className="inline-block bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold"
               >
-                Read Our Full Story
+                Learn More About Us
               </Link>
             </div>
-            <div className="relative">
-              <OptimizedImage
-                src="/images/coconut-plantation.jpg"
-                alt="Coconut plantation in Ghana"
-                className="rounded-2xl shadow-2xl"
-              />
-              <div className="absolute -bottom-6 -right-6 bg-white p-6 rounded-2xl shadow-lg max-w-xs">
-                <div className="text-green-600 font-bold text-lg">🌟 Quality Guaranteed</div>
-                <p className="text-gray-600 mt-2">100% natural, no additives, cold-pressed perfection</p>
+            <div className="bg-white p-8 rounded-lg shadow">
+              <div className="text-5xl text-center mb-4">🥥</div>
+              <h3 className="text-xl font-semibold text-center mb-4">Quality Guarantee</h3>
+              <div className="space-y-3">
+                <div className="flex items-center">
+                  <div className="text-green-600 mr-3">✓</div>
+                  <span>100% Natural & Pure</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="text-green-600 mr-3">✓</div>
+                  <span>No Chemical Processing</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="text-green-600 mr-3">✓</div>
+                  <span>Sustainably Sourced</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="text-green-600 mr-3">✓</div>
+                  <span>Lab Tested for Purity</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </section>
-
-      {/* Trust Badges */}
-      <section className="py-12 bg-green-800 text-white">
-        <div className="container mx-auto px-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-3xl mb-2">🌿</div>
-              <div className="font-bold text-lg">100% Natural</div>
-            </div>
-            <div>
-              <div className="text-3xl mb-2">🇬🇭</div>
-              <div className="font-bold text-lg">Ghana Made</div>
-            </div>
-            <div>
-              <div className="text-3xl mb-2">⭐</div>
-              <div className="font-bold text-lg">Quality Guaranteed</div>
-            </div>
-            <div>
-              <div className="text-3xl mb-2">🚚</div>
-              <div className="font-bold text-lg">Nationwide Delivery</div>
-            </div>
-          </div>
-        </div>
-      </section>
+      </div>
 
       {/* CTA Section */}
-      <section className="py-20 bg-gradient-to-r from-green-700 to-green-900 text-white">
+      <div className="py-16 bg-gradient-to-r from-green-600 to-green-800 text-white">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-6">
-            Ready to Experience Pure Coconut Oil?
-          </h2>
-          <p className="text-xl mb-8 max-w-2xl mx-auto text-green-100">
-            Join thousands of satisfied customers who've discovered the benefits of our premium coconut oil
+          <h2 className="text-3xl font-bold mb-6">Ready to Experience Pure Coconut Oil?</h2>
+          <p className="text-xl opacity-90 mb-8 max-w-2xl mx-auto">
+            Join thousands of satisfied customers who've discovered the benefits 
+            of our premium coconut oil.
           </p>
-          <Link 
+          <Link
             to="/products"
-            className="inline-block bg-white text-green-700 hover:bg-green-50 px-10 py-4 rounded-lg text-xl font-bold transition-all duration-300 transform hover:scale-105 shadow-2xl"
+            onClick={() => handleCTAClick('final_cta')}
+            className="inline-block bg-white text-green-700 hover:bg-green-50 px-8 py-4 rounded-lg font-semibold text-lg"
           >
-            Shop Premium Coconut Oil
+            Shop Coconut Oil Now
           </Link>
         </div>
-      </section>
-    </>
+      </div>
+    </div>
   );
 };
 

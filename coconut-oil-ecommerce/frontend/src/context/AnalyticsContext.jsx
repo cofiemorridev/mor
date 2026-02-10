@@ -128,6 +128,15 @@ export const AnalyticsProvider = ({ children }) => {
       });
     },
     
+    trackSignUp: (method) => {
+      trackEvent({ action: 'sign_up', category: 'engagement', label: method });
+      logEvent({ 
+        type: 'sign_up', 
+        method,
+        timestamp: new Date() 
+      });
+    },
+    
     // Mock data for development
     getMockDashboardData: () => mockData,
     
@@ -148,28 +157,18 @@ export const AnalyticsProvider = ({ children }) => {
   return (
     <AnalyticsContext.Provider value={analytics}>
       {children}
-      {/* Development analytics panel */}
-      {import.meta.env.DEV && (
-        <div className="fixed bottom-4 right-4 z-50">
-          <button
-            onClick={() => {
-              const panel = document.getElementById('dev-analytics-panel');
-              panel.classList.toggle('hidden');
-            }}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow-lg text-sm"
-          >
-            📊 Dev Analytics
-          </button>
-        </div>
-      )}
     </AnalyticsContext.Provider>
   );
 };
 
 export const DevAnalyticsPanel = () => {
-  const { getRecentEvents, clearEvents, getMockDashboardData } = useAnalytics();
-  const events = getRecentEvents();
-  const mockData = getMockDashboardData();
+  const { getRecentEvents, clearEvents, getMockDashboardData } = useContext(AnalyticsContext);
+  const events = getRecentEvents ? getRecentEvents() : [];
+  const mockData = getMockDashboardData ? getMockDashboardData() : {};
+
+  if (!getRecentEvents || !getMockDashboardData) {
+    return null;
+  }
   
   return (
     <div id="dev-analytics-panel" className="fixed bottom-20 right-4 w-96 bg-white rounded-lg shadow-xl z-50 p-4 hidden border border-gray-200 max-h-96 overflow-y-auto">
@@ -197,19 +196,19 @@ export const DevAnalyticsPanel = () => {
           <div className="grid grid-cols-2 gap-2 text-xs">
             <div className="bg-gray-50 p-2 rounded">
               <div className="text-gray-500">Page Views</div>
-              <div className="font-bold">{mockData.pageViews}</div>
+              <div className="font-bold">{mockData.pageViews || 0}</div>
             </div>
             <div className="bg-gray-50 p-2 rounded">
               <div className="text-gray-500">Users</div>
-              <div className="font-bold">{mockData.users}</div>
+              <div className="font-bold">{mockData.users || 0}</div>
             </div>
             <div className="bg-gray-50 p-2 rounded">
               <div className="text-gray-500">Conversion</div>
-              <div className="font-bold">{mockData.conversionRate}</div>
+              <div className="font-bold">{mockData.conversionRate || '0%'}</div>
             </div>
             <div className="bg-gray-50 p-2 rounded">
               <div className="text-gray-500">Revenue</div>
-              <div className="font-bold">{mockData.revenue}</div>
+              <div className="font-bold">{mockData.revenue || '₵0'}</div>
             </div>
           </div>
         </div>
@@ -245,3 +244,76 @@ export const DevAnalyticsPanel = () => {
     </div>
   );
 };
+    
+    return () => {
+      window.removeEventListener('popstate', handleRouteChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Track events and store them for dev dashboard
+  const handleTrackEvent = (event, data) => {
+    const eventData = {
+      timestamp: new Date().toISOString(),
+      event,
+      data,
+    };
+    
+    setAnalyticsEvents(prev => [eventData, ...prev.slice(0, 49)]);
+    
+    // Map to specific tracking functions
+    switch (event) {
+      case 'page_view':
+        trackPageView(data.path);
+        break;
+      case 'product_view':
+        trackProductView(data.productId, data.productName, data.category, data.price);
+        break;
+      case 'add_to_cart':
+        trackAddToCart(data.productId, data.productName, data.quantity, data.price);
+        break;
+      case 'checkout_step':
+        trackCheckoutStep(data.step, data.option);
+        break;
+      case 'purchase':
+        trackPurchase(data.transactionId, data.value, data.items);
+        break;
+      case 'search':
+        trackSearch(data.searchTerm, data.resultsCount);
+        break;
+      default:
+        trackEvent(data);
+    }
+  };
+
+  const value = {
+    // Tracking functions
+    trackPageView: (path) => handleTrackEvent('page_view', { path }),
+    trackProductView: (productId, productName, category, price) => 
+      handleTrackEvent('product_view', { productId, productName, category, price }),
+    trackAddToCart: (productId, productName, quantity, price) => 
+      handleTrackEvent('add_to_cart', { productId, productName, quantity, price }),
+    trackCheckoutStep: (step, option) => 
+      handleTrackEvent('checkout_step', { step, option }),
+    trackPurchase: (transactionId, value, items) => 
+      handleTrackEvent('purchase', { transactionId, value, items }),
+    trackSearch: (searchTerm, resultsCount) => 
+      handleTrackEvent('search', { searchTerm, resultsCount }),
+    trackEvent: (data) => handleTrackEvent('custom_event', data),
+    
+    // Analytics data
+    analyticsEvents,
+    mockData,
+    
+    // Development logger
+    devLogger,
+  };
+
+  return (
+    <AnalyticsContext.Provider value={value}>
+      {children}
+    </AnalyticsContext.Provider>
+  );
+};
+
+export default AnalyticsContext;

@@ -1,3 +1,13 @@
+#!/bin/bash
+
+cd frontend
+
+# Check if App.jsx exists
+if [ -f "src/App.jsx" ]; then
+  echo "Updating App.jsx with new routes..."
+  
+  # Create a new App.jsx with all routes
+  cat > src/App.jsx << 'APP'
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AnalyticsProvider, DevAnalyticsPanel } from './context/AnalyticsContext';
@@ -58,3 +68,9 @@ function App() {
 }
 
 export default App;
+APP
+  
+  echo "✅ App.jsx updated with all routes"
+else
+  echo "❌ App.jsx not found"
+fi
